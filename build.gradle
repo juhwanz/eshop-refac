@@ -14,7 +14,7 @@ java {
 	}
 }
 
-// ❌ 에러 유발 가능성 있는 configurations 블록 삭제함
+//에러 유발 가능성 있는 configurations 블록 삭제함
 // configurations {
 //    compileOnly {
 //       extendsFrom annotationProcessor
@@ -34,6 +34,7 @@ dependencies {
 
 	// 2. Lombok (configurations 블록 없이도 잘 동작함)
 	compileOnly 'org.projectlombok:lombok'
+	testCompileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
 	// 3. Database & Redis
