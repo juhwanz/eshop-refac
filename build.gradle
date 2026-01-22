@@ -65,6 +65,21 @@ dependencies {
 	testRuntimeOnly 'com.h2database:h2'
 }
 
+// 기존 QueryDSL 설정 다 지우고 이걸로 대체
+def querydslDir = "$buildDir/generated/querydsl"
+
+sourceSets {
+	main.java.srcDirs += [ querydslDir ]
+}
+
+tasks.withType(JavaCompile) {
+	options.getGeneratedSourceOutputDirectory().set(file(querydslDir))
+}
+
+clean.doLast {
+	file(querydslDir).deleteDir()
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }

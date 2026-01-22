@@ -11,6 +11,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,9 +44,22 @@ public class ProductService {
         return new ProductDto.Response(product);
     }
 
+    /**
+     * Legacy: Offset 기반 페이징 (기존 방식)
+     */
     @Transactional(readOnly = true)
     public Page<ProductDto.Response> search(ProductDto.SearchCondition condition, Pageable pageable){
         return productRepository.search(condition, pageable)
+                .map(ProductDto.Response::new);
+    }
+
+    /**
+     * Optimized: No-Offset 기반 페이징 (성능 최적화)
+     * [추가] Repository의 searchNoOffset을 호출하고 DTO로 변환
+     */
+    @Transactional(readOnly = true)
+    public Slice<ProductDto.Response> searchNoOffset(Long lastProductId, ProductDto.SearchCondition condition, Pageable pageable) {
+        return productRepository.searchNoOffset(lastProductId, condition, pageable)
                 .map(ProductDto.Response::new);
     }
 

@@ -2,6 +2,7 @@ package com.project.eshop_refact.controller;
 
 import com.project.eshop_refact.config.UserDetailsImpl;
 import com.project.eshop_refact.dto.OrderDto;
+import com.project.eshop_refact.facade.RedissonLockStockFacade;
 import com.project.eshop_refact.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/orders")
 public class OrderController {
 
+    private final RedissonLockStockFacade redissonLockStockFacade;
     private final OrderService orderService;
 
     @PostMapping
@@ -27,7 +29,7 @@ public class OrderController {
     ){
         Long userId = userDetails.getUser().getId();
 
-        Long orderId = orderService.order(userId, requestDto.getProductId(), requestDto.getCount());
+        Long orderId = redissonLockStockFacade.order(userId, requestDto.getProductId(), requestDto.getCount());
 
         return ResponseEntity.ok(orderId);
     }
@@ -39,6 +41,7 @@ public class OrderController {
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC)Pageable pageable
     ){
         Long userId = userDetails.getUser().getId();
+        // 단순 조회는 락이 없으니 service 바로 호출.
         Page<OrderDto.Response> orders = orderService.getOrders(userId, pageable);
         return ResponseEntity.ok(orders);
     }
