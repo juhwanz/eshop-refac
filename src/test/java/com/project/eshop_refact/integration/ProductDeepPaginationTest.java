@@ -1,4 +1,4 @@
-package com.project.eshop_refact.intergration;
+package com.project.eshop_refact.integration;
 
 // JPA - saveAll() 대신 JDBC Batch Update를 사용해, 100만 건을 단 10초 이내로 떄려 박음.
 // saveAll 은 몇 분 걸림.

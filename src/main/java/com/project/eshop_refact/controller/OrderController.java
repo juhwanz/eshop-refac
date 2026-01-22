@@ -1,4 +1,4 @@
-package com.project.eshop_refact.cotroller;
+package com.project.eshop_refact.controller;
 
 import com.project.eshop_refact.config.UserDetailsImpl;
 import com.project.eshop_refact.dto.OrderDto;

@@ -2,7 +2,6 @@ package com.project.eshop_refact.controller;
 
 import com.project.eshop_refact.config.JwtUtil;
 import com.project.eshop_refact.config.SecurityConfig;
-import com.project.eshop_refact.cotroller.UserController;
 import com.project.eshop_refact.dto.UserDto;
 import com.project.eshop_refact.service.UserDetailsServiceImpl;
 import com.project.eshop_refact.service.UserService;
