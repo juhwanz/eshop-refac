@@ -1,4 +1,4 @@
-package com.project.eshop_refact.intergration;
+package com.project.eshop_refact.integration;
 
 import com.project.eshop_refact.facade.RedissonLockStockFacade;
 import com.project.eshop_refact.domain.Product;
