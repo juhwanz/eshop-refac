@@ -1,30 +1,64 @@
+# ==========================================
+# 1. Common Settings (공통 설정)
+# ==========================================
 spring:
+  application:
+    name: eshop-refact
   profiles:
-    include: secret
+    active: local # 기본적으로 로컬 프로필 활성화
+
   datasource:
     url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: root
-    password: ${DB_PASSWORD}
+    password: ${DB_PASSWORD} # IntelliJ 환경변수 or 시스템 변수 사용
     driver-class-name: com.mysql.cj.jdbc.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: update # 환경 안정성을 위해 validate 권장.
-    properties:
-      hibernate:
-        show_sql: true
-        format_sql: true
-        dialect: org.hibernate.dialect.MySQL8Dialect
-        # 배치 로딩으로 N+1 문제 방어
-        default_batch_fetch_size: 100
-    # OSIV : FALSE( Tx 범위 밖에서 DB 커넥션 점유 방지)
-    open-in-view: false
 
   data:
     redis:
       host: localhost
       port: 6379
 
+  jpa:
+    # OSIV: 트랜잭션 범위 밖에서 DB 커넥션 점유 방지 (성능 최적화 필수 설정)
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        # Batch Fetching: N+1 문제 해결을 위한 전역 설정
+        default_batch_fetch_size: 100
+
 jwt:
   secret: ${JWT_SECRET_KEY}
-  expiration-time: 86400000 #24시간
+  expiration-time: 86400000 # 24시간
+
+---
+# ==========================================
+# 2. Local Profile (개발 환경)
+# ==========================================
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    hibernate:
+      ddl-auto: update # 개발 중에는 테이블 자동 변경 허용
+    show-sql: true     # 쿼리 로그 출력 O
+    properties:
+      hibernate:
+        format_sql: true
+
+---
+# ==========================================
+# 3. Prod Profile (운영 환경 시뮬레이션)
+# ==========================================
+spring:
+  config:
+    activate:
+      on-profile: prod
+  jpa:
+    hibernate:
+      ddl-auto: validate # 운영 중에는 스키마 변경 방지 (검증만 수행)
+    show-sql: false      # 성능을 위해 쿼리 로그 출력 X
+    properties:
+      hibernate:
+        format_sql: false

@@ -8,6 +8,7 @@ import com.project.eshop_refact.domain.OrderStatus;
 import com.project.eshop_refact.domain.User;
 import com.project.eshop_refact.domain.UserRoleEnum;
 import com.project.eshop_refact.dto.OrderDto;
+import com.project.eshop_refact.facade.RedissonLockStockFacade;
 import com.project.eshop_refact.service.OrderService;
 import com.project.eshop_refact.service.UserDetailsServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +49,8 @@ class OrderControllerTest {
     @Autowired ObjectMapper objectMapper;
     @MockBean OrderService orderService;
 
+    @MockBean
+    RedissonLockStockFacade redissonLockStockFacade;
     // 요 2놈 떄문에 에러 자꾸 뜸.
     @MockBean
     JwtUtil jwtUtil;
@@ -76,7 +79,7 @@ class OrderControllerTest {
         request.setCount(2);
 
         // Service Mocking: 주문 성공 시 주문 ID 500L 반환 가정
-        given(orderService.order(eq(1L), eq(100L), eq(2))).willReturn(500L);
+        given(redissonLockStockFacade.order(eq(1L), eq(100L), eq(2))).willReturn(500L);
 
         // when & then
         mockMvc.perform(post("/api/orders")
