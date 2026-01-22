@@ -1,0 +1,94 @@
+package com.project.eshop_refact.config;
+
+import com.project.eshop_refact.domain.UserRoleEnum;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.security.Key;
+import java.util.Base64;
+import java.util.Date;
+
+
+
+@Slf4j
+@Component
+public class JwtUtil {
+
+
+    private final long expirationTime;
+    private final String secretKeyString;
+    private Key key;
+
+    private final long REFRESH_TOKEN_TIME = 14 * 24 * 60 * 60 * 1000L;
+
+
+    public JwtUtil(
+            @Value("${jwt.expiration-time}") long expirationTime,
+            @Value("${jwt.secret}") String secretKeyString
+    ) {
+        this.expirationTime = expirationTime;
+        this.secretKeyString = secretKeyString;
+    }
+
+    @PostConstruct
+    public void init() {
+        byte[] keyBytes = Base64.getDecoder().decode(secretKeyString);
+        this.key = Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    public String createToken(String username, UserRoleEnum role) {
+        Claims claims = Jwts.claims().setSubject(username);
+        claims.put("auth", role.name());
+
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + expirationTime);
+
+        return Jwts.builder()
+                .setClaims(claims)
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(key)
+                .compact();
+    }
+
+    public String createRefreshToken(String username){
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + REFRESH_TOKEN_TIME);
+
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(key)
+                .compact();
+    }
+
+    public String getUsernameFromToken(String token){
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getSubject();
+    }
+
+    public boolean validateToken(String token){
+        try{
+            Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token);
+            return true;
+        }catch (Exception e){
+            log.error("유효하지 않은 토큰입니다. {}", e.getMessage());
+            return false;
+        }
+    }
+
+
+}
