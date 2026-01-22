@@ -1,0 +1,30 @@
+spring:
+  profiles:
+    include: secret
+  datasource:
+    url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate # 환경 안정성을 위해 validate 권장.
+    properties:
+      hibernate:
+        show_sql: true
+        format_sql: true
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        # 배치 로딩으로 N+1 문제 방어
+        default_batch_fetch_size: 100
+    # OSIV : FALSE( Tx 범위 밖에서 DB 커넥션 점유 방지)
+    open-in-view: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+jwt:
+  secret: ${JWT_SECRET_KEY}
+  expiration-time: 86400000 #24시간
