@@ -9,7 +9,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: validate # 환경 안정성을 위해 validate 권장.
+      ddl-auto: update # 환경 안정성을 위해 validate 권장.
     properties:
       hibernate:
         show_sql: true

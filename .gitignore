@@ -38,3 +38,17 @@ out/
 
 #
 application-secret.yml
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### Gradle ###
+.gradle
+build/
+
+### Security ###
+src/main/resources/application-secret.yaml
+application-secret.yaml
