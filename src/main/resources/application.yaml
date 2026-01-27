@@ -8,6 +8,11 @@ spring:
     active: local # 기본적으로 로컬 프로필 활성화
 
   datasource:
+    hikari:   # HikariCP [DB 커넥션 풀 세팅] : 기본값 10개.
+      maximum-pool-size: 20 # 스레드 수 고려해 넉넉히 20개
+      minimum-idle: 10      # 항상 유지할 최소 연결 수.
+      connection-timeout: 30000 # 30초 안에 여결 못 얻으면 에러 (데드락 방지)
+      max-lifetime: 1800000   # 커넥션 최대 생존 시간 ( DB 생존시간 보다 짧게)
     url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: root
     password: ${DB_PASSWORD} # IntelliJ 환경변수 or 시스템 변수 사용
@@ -31,6 +36,12 @@ jwt:
   secret: ${JWT_SECRET_KEY}
   expiration-time: 86400000 # 24시간
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus # 헬스 체크 및 모니터링 엔드포인트 노출.
+        # /actuator/health로 답해 줌.
 ---
 # ==========================================
 # 2. Local Profile (개발 환경)
@@ -42,10 +53,16 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update # 개발 중에는 테이블 자동 변경 허용
-    show-sql: true     # 쿼리 로그 출력 O
+    #show-sql: true     # 쿼리 로그 출력 O -> sysout으로 성능 저하 가능성
     properties:
       hibernate:
         format_sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug # SQL 쿼리를 로거를 통해 출력
+    org.hibernate.type.descriptor.sql: trace # 바인딩 변수(? 값)까지 보고 싶을 때 (개발환경용)
+    com.project.eshop_refact: debug # 내 프로젝트 로그 레벨
 
 ---
 # ==========================================

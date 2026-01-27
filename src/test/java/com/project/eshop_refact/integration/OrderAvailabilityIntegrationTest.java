@@ -109,9 +109,9 @@ public class OrderAvailabilityIntegrationTest {
         System.out.println("   - 조회 실패: " + viewFail.get());
 
         if (viewFail.get() > 0) {
-            System.out.println("    ➡️ 결과: 장애 발생 ❌ (DB 커넥션 고갈됨)");
+            System.out.println("     결과: 장애 발생  (DB 커넥션 고갈됨)");
         } else {
-            System.out.println("    ➡️ 결과: 서비스 안정적 ✅ (Redis가 DB 보호함)");
+            System.out.println("     결과: 서비스 안정적  (Redis가 DB 보호함)");
         }
     }
 

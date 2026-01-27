@@ -1,0 +1,25 @@
+services:
+  # 1. MySQL (Main DB)
+  mysql:
+    image: mysql:8.0
+    container_name: eshop-mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234 # 로컬 테스트용 비밀번호
+      MYSQL_DATABASE: eshop
+      TZ: Asia/Seoul
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mysql-data:/var/lib/mysql
+
+  # 2. Redis (Cache & Distributed Lock)
+  redis:
+    image: redis:latest
+    container_name: eshop-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      TZ: Asia/Seoul
