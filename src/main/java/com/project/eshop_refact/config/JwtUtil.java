@@ -85,6 +85,7 @@ public class JwtUtil {
                     .parseClaimsJws(token);
             return true;
         }catch (Exception e){
+            // 토큰 만료, 위조, 형식 오류 등 처리 모호 -> 따로 분리해야함.
             log.error("유효하지 않은 토큰입니다. {}", e.getMessage());
             return false;
         }
