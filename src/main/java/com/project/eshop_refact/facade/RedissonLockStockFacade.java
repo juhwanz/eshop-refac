@@ -25,13 +25,21 @@ public class RedissonLockStockFacade {
      * Pub/Sub 기반의 락 구현체로 Redis 부하를 줄임 (vs Spin Lock).
      * </p>
      */
+
+    // 락 획득 대기 시간 (Wait Time): 10초
+    // (이유: 트래픽 폭주 시 대기열에서 너무 오래 기다리지 않고 Fail-Fast 처리하기 위함)
+    private static final long WAIT_TIME = 10L;
+
+    // 락 점유 시간 (Lease Time): 1초
+    // (이유: 로직이 멈춰도 1초 뒤 강제 해제하여 데드락 방지)
+    private static final long LEASE_TIME = 1L;
     public Long order(Long userId, Long productId, int quantity) {
         // Lock Key: 상품 단위로 락을 걸어 동시성 제어
         RLock lock = redissonClient.getLock("product:stock:" + productId);
 
         try {
             // 락 획득 시도 (최대 10초 대기, 락 획득 후 1초 지나면 자동 해제)
-            boolean available = lock.tryLock(10, 1, TimeUnit.SECONDS);
+            boolean available = lock.tryLock(WAIT_TIME, LEASE_TIME, TimeUnit.SECONDS);
 
             if (!available) {
                 log.warn("Redisson Lock 획득 실패 - ProductId: {}", productId);

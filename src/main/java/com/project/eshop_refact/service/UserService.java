@@ -12,12 +12,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserService {
 
     private final UserRepository userRepository;
@@ -25,6 +27,7 @@ public class UserService {
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, String> redisTemplate;
 
+    @Transactional
     public void signup(UserDto.SignupRequest requestDto){
         String email = requestDto.getEmail();
 
@@ -38,12 +41,13 @@ public class UserService {
         userRepository.save(user);
     }
 
+    // 로그인은 조회만 -> 클래스 레벨의 readOnly = true가 적용.
     public UserDto.TokenResponse login(UserDto.LoginRequest requestDto){
         User user = userRepository.findByEmail(requestDto.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         if(!passwordEncoder.matches(requestDto.getPassword(), user.getPassword())){
-            throw new BusinessException(ErrorCode.PASSWORD_NOT_MATCH);
+            throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
 
         String accessToken = jwtUtil.createToken(user.getEmail(), user.getRole());
