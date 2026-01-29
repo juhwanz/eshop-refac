@@ -42,6 +42,10 @@ class UserControllerTest {
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
 
+    @MockBean
+    com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
+
+
     @Test
     @DisplayName("회원가입 성공: 201 상태코드 반환")
     @WithMockUser // CSRF 토큰 생성을 위해 필요
@@ -49,7 +53,7 @@ class UserControllerTest {
         // given
         UserDto.SignupRequest request = new UserDto.SignupRequest();
         request.setEmail("test@email.com");
-        request.setPassword("password");
+        request.setPassword("password123!");
         request.setUsername("tester");
 
         // when & then
@@ -83,6 +87,25 @@ class UserControllerTest {
                 // [수정] 헤더(header)가 아니라 바디(jsonPath)를 검증해야 합니다.
                 .andExpect(jsonPath("$.accessToken").value("access-token"))
                 .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
+                .andDo(print());
+    }
+
+    @Test
+    @DisplayName("회원가입 실패: 유효하지 않은 입력값 (400 Bad Request)")
+    @WithMockUser
+    void signup_fail_invalid_input() throws Exception {
+        // given
+        UserDto.SignupRequest request = new UserDto.SignupRequest();
+        request.setEmail("invalid-email"); // 이메일 형식이 아님!
+        request.setPassword(""); // 비밀번호 공백!
+        request.setUsername("");
+
+        // when & then
+        mockMvc.perform(post("/api/users/signup")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()) // 400 에러 기대
                 .andDo(print());
     }
 }

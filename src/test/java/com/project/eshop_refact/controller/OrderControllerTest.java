@@ -41,22 +41,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+// @WebMVcTest Vs @SpringBootTest
+// -> 컨트롤러 계층만 잘라서 띄움. -> DB까지 띄우지 않고, Service이하는 전부
+// 가짜객체 (Mock)로 대체
 @WebMvcTest(controllers = OrderController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class))
 class OrderControllerTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
-    @MockBean OrderService orderService;
 
-    @MockBean
-    RedissonLockStockFacade redissonLockStockFacade;
-    // 요 2놈 떄문에 에러 자꾸 뜸.
+    // Controller가 의존하는 3인방 모두 Mocking
+    @MockBean OrderService orderService;
+    @MockBean RedissonLockStockFacade redissonLockStockFacade;
+    @MockBean com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
+
+    // Filter Chain 통과를 위한 껍데기들. -> 컨트롤러에 관련된 빈들만 로드 하지만, 자동으로 띄우는 애들도 있음.
     @MockBean
     JwtUtil jwtUtil;
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
-
 
     private UserDetailsImpl testUserDetails;
 
@@ -68,6 +72,10 @@ class OrderControllerTest {
 
         // 인증 객체 생성
         testUserDetails = new UserDetailsImpl(user);
+
+        // 대기열 프리패스권 발급
+        // 이게 없으면 Mockito가 false를 리턴해서 인터셉터에서 429로 막힘
+        given(waitingQueueService.isAllowed(any())).willReturn(true);
     }
 
     @Test
@@ -83,7 +91,7 @@ class OrderControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/orders")
-                        .with(csrf()) // CSRF 토큰 필요
+                        .with(csrf()) // CSRF 토큰 필요 -> 없으면 시큐리티에서 403 Forbidden
                         .with(user(testUserDetails)) // 로그인한 유저 주입
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
@@ -99,22 +107,17 @@ class OrderControllerTest {
         // 1. 가짜 Order 객체 생성 (빈 껍데기)
         Order order = new Order();
 
-        // 2. Reflection을 사용해 필요한 필드 강제 주입 (Setter가 없으므로)
         ReflectionTestUtils.setField(order, "id", 10L);
-        ReflectionTestUtils.setField(order, "orderDate", LocalDateTime.now());
-        ReflectionTestUtils.setField(order, "orderItems", new ArrayList<>());
-        ReflectionTestUtils.setField(order, "status", OrderStatus.ORDER); // [중요] null이면 DTO 변환 시 에러남!
+        ReflectionTestUtils.setField(order, "status", OrderStatus.ORDER);
+        ReflectionTestUtils.setField(order, "orderItems", new ArrayList<>()); // N+1 방지용 빈 리스트
 
-        // 3. Service가 반환할 Page 객체 생성
-        OrderDto.Response response = new OrderDto.Response(order);
-        Page<OrderDto.Response> pageResponse = new PageImpl<>(List.of(response));
+        Page<OrderDto.Response> pageResponse = new PageImpl<>(List.of(new OrderDto.Response(order)));
 
-        // 4. Mocking: getOrders 호출 시 위에서 만든 pageResponse 반환
         given(orderService.getOrders(eq(1L), any())).willReturn(pageResponse);
 
         // when & then
         mockMvc.perform(get("/api/orders")
-                        .with(user(testUserDetails))) // 인증 정보 주입
+                        .with(user(testUserDetails)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].orderId").value(10L))
                 .andExpect(jsonPath("$.content[0].orderStatus").value("ORDER"))
