@@ -1,4 +1,7 @@
 spring:
+  profiles:
+    active: test
+
   datasource:
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
@@ -18,7 +21,9 @@ spring:
     redis:
       host: localhost
       port: 6379
-
+test:
+  simulation:
+    delay-ms: 50 # 0.05초
 jwt:
   # 임의의 값 (Base64 인코딩된 긴 문자열)
   secret: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou
