@@ -5,6 +5,7 @@ import com.project.eshop_refact.dto.OrderDto;
 import com.project.eshop_refact.facade.RedissonLockStockFacade;
 import com.project.eshop_refact.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -21,6 +22,9 @@ public class OrderController {
 
     private final RedissonLockStockFacade redissonLockStockFacade;
     private final OrderService orderService;
+
+    @Autowired
+    private com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
 
     @PostMapping
     public ResponseEntity<Long> createOrder(
@@ -45,4 +49,13 @@ public class OrderController {
         Page<OrderDto.Response> orders = orderService.getOrders(userId, pageable);
         return ResponseEntity.ok(orders);
     }
+
+    /**
+     * 대기열 등록 API (테스트용)
+     * POST /api/orders/queue
+     */
+    @PostMapping("/queue")
+    public Long registerQueue(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        return waitingQueueService.registerQueue(userDetails.getUser().getId());}
+
 }

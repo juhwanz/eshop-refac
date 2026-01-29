@@ -2,6 +2,7 @@ package com.project.eshop_refact.facade;
 
 
 import com.project.eshop_refact.service.OrderService;
+import com.project.eshop_refact.service.queue.WaitingQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
@@ -17,6 +18,7 @@ public class RedissonLockStockFacade {
 
     private final RedissonClient redissonClient;
     private final OrderService orderService; // 주문 서비스를 주입받음
+    private final WaitingQueueService waitingQueueService; // [추가] 주입 필요
 
     /**
      * Redisson Distributed Lock Facade
@@ -57,6 +59,8 @@ public class RedissonLockStockFacade {
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();
             }
+
+            waitingQueueService.removeUser(userId);
         }
     }
 }
