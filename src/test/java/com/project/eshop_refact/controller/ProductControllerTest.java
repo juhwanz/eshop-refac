@@ -32,6 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+// 대기열 인터셉터 문제 발생 X -> WebConfig에서 /api/orders만 적용했기에.
 @WebMvcTest(controllers = ProductController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class))
 class ProductControllerTest {
@@ -45,10 +46,11 @@ class ProductControllerTest {
     JwtUtil jwtUtil;
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
-
+    @MockBean
+    com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
     @Test
     @DisplayName("상품 등록 API")
-    @WithMockUser
+    @WithMockUser // product 컨트롤러의 POST,GET API가 시큐리티 필터 통과시, "가짜 인증 유저"를 주입해 401에러 방지.
     void registerProduct() throws Exception {
         // given
         ProductDto.RegisterRequest request = new ProductDto.RegisterRequest();

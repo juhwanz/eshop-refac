@@ -1,8 +1,7 @@
 package com.project.eshop_refact.config;
 
 import com.project.eshop_refact.domain.UserRoleEnum;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -84,11 +83,18 @@ public class JwtUtil {
                     .build()
                     .parseClaimsJws(token);
             return true;
-        }catch (Exception e){
-            // 토큰 만료, 위조, 형식 오류 등 처리 모호 -> 따로 분리해야함.
-            log.error("유효하지 않은 토큰입니다. {}", e.getMessage());
-            return false;
+        } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
+            log.error("잘못된 JWT 서명입니다. (위조 가능성) {}", e.getMessage());
+        } catch (ExpiredJwtException e) {
+            log.warn("만료된 JWT 토큰입니다. {}", e.getMessage()); // 만료는 흔한 일이므로 Warn 레벨
+        } catch (UnsupportedJwtException e) {
+            log.error("지원되지 않는 JWT 토큰입니다. {}", e.getMessage());
+        } catch (IllegalArgumentException e) {
+            log.error("JWT 토큰이 잘못되었습니다. (빈 값, 공백 등) {}", e.getMessage());
+        } catch (io.jsonwebtoken.io.DecodingException e) {
+            log.error("JWT 디코딩 실패 (형식 오류): {}", e.getMessage());
         }
+        return false;
     }
 
 
