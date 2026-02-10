@@ -8,5 +8,6 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
+    // Null Safety를 위해 Optional 반환
     Optional<User> findByEmail(String email);
 }

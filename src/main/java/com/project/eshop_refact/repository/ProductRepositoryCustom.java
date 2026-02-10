@@ -9,11 +9,11 @@ import org.springframework.data.domain.Slice;
 import java.util.List;
 
 public interface ProductRepositoryCustom {
-    // 기존 (off-set 방식) -  앞에서부터 다 읽고 버리는 방식
+    // 기존 (off-set 방식) -  앞에서부터 다 읽고 버리는 방식 (Count Query 비용 발생, 깊은 페이지 조회 시 성능 저하)
     Page<Product> search(ProductDto.SearchCondition condition, Pageable pageable);
 
-    // No-off-set 방식 - 마지막으로 조회한 ID보다 작은 것 부터 바로 시작
-    // Page 대신 Slice 반환
+    // Optimization: 대용량 데이터 조회 성능 개선을 위한 No-Offset (Keyset) 페이징
+    // Infinite Scroll: 다음 페이지 존재 여부만 확인(Slice)하여 불필요한 Count 연산 제거
     Slice<Product> searchNoOffset(Long lastProductId, ProductDto.SearchCondition condition, Pageable pageable);
 }
 

@@ -16,15 +16,13 @@ import org.springframework.web.bind.annotation.*;
 
 
 @RestController
-@RequiredArgsConstructor
+@RequiredArgsConstructor        // 생성자 주입으로 통일 (Lombok)
 @RequestMapping("/api/orders")
 public class OrderController {
 
     private final RedissonLockStockFacade redissonLockStockFacade;
     private final OrderService orderService;
-
-    @Autowired
-    private com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
+    // private final WaitingQueueService waitingQueueService; // [Security] 운영 배포 시 제거 권장
 
     @PostMapping
     public ResponseEntity<Long> createOrder(
@@ -33,7 +31,13 @@ public class OrderController {
     ){
         Long userId = userDetails.getUser().getId();
 
-        Long orderId = redissonLockStockFacade.order(userId, requestDto.getProductId(), requestDto.getCount());
+        //Long orderId = redissonLockStockFacade.order(userId, requestDto.getProductId(), requestDto.getCount());
+        // Facade를 통해 "분산 락 -> 트랜잭션 -> 재고 차감" 순차 실행
+        Long orderId = redissonLockStockFacade.order(
+                userId,
+                requestDto.getProductId(),
+                requestDto.getCount()
+        );
 
         return ResponseEntity.ok(orderId);
     }
@@ -54,8 +58,8 @@ public class OrderController {
      * 대기열 등록 API (테스트용)
      * POST /api/orders/queue
      */
-    @PostMapping("/queue")
+    /*@PostMapping("/queue")
     public Long registerQueue(@AuthenticationPrincipal UserDetailsImpl userDetails) {
         return waitingQueueService.registerQueue(userDetails.getUser().getId());}
-
+    */
 }

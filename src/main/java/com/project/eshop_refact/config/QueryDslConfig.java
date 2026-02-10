@@ -13,6 +13,7 @@ public class QueryDslConfig {
     @PersistenceContext
     private EntityManager entityManager;
 
+    // JPQL의 한계(Runtime Error) 보완: 컴파일 시점의 Type-Safety 확보 및 동적 쿼리 처리
     @Bean
     public JPAQueryFactory jpaQueryFactory(){
         return new JPAQueryFactory(entityManager);

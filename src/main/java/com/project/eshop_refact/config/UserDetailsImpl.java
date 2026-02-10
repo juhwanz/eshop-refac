@@ -28,6 +28,7 @@ public class UserDetailsImpl implements UserDetails {
         UserRoleEnum role = user.getRole();
         String authority = role.name();
 
+        // "ROLE_" 접두사는 Spring Security의 hasRole() 등에서 사용하는 컨벤션
         return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + authority));
     }
 
@@ -43,6 +44,7 @@ public class UserDetailsImpl implements UserDetails {
 
     @Override
     public boolean isAccountNonExpired(){return true;}
+
     @Override
     public boolean isAccountNonLocked(){return true;}
     @Override
