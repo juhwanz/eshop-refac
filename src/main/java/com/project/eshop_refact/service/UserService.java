@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
+@Transactional(readOnly = true) // 조회 성능 최적화 (Dirty Checking 비용 절감)
 public class UserService {
 
     private final UserRepository userRepository;
@@ -27,13 +27,14 @@ public class UserService {
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, String> redisTemplate;
 
-    @Transactional
+    @Transactional  // 쓰기 작업: 데이터 정합성 보장
     public void signup(UserDto.SignupRequest requestDto){
         String email = requestDto.getEmail();
 
         Optional<User> checkUser = userRepository.findByEmail(email);
         if(checkUser.isPresent()) throw new BusinessException(ErrorCode.EMAIL_DUPLICATION);
 
+        // 보안: 단방향 해싱 알고리즘(BCrypt) 적용
         String password = passwordEncoder.encode(requestDto.getPassword());
         UserRoleEnum role = UserRoleEnum.USER;
 
@@ -41,7 +42,7 @@ public class UserService {
         userRepository.save(user);
     }
 
-    // 로그인은 조회만 -> 클래스 레벨의 readOnly = true가 적용.
+
     public UserDto.TokenResponse login(UserDto.LoginRequest requestDto){
         User user = userRepository.findByEmail(requestDto.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -54,7 +55,7 @@ public class UserService {
 
         String refreshToken = jwtUtil.createRefreshToken(user.getEmail());
 
-        // Refresh Token Redis 저장 (TTL: 14일)
+        // 성능: Refresh Token 저장소로 Redis 채택 (TTL 설정으로 생명주기 자동 관리)
         redisTemplate.opsForValue().set(
                 "RT:" + user.getEmail(), refreshToken, 14, TimeUnit.DAYS
         );

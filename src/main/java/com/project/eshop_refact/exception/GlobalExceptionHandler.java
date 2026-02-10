@@ -2,6 +2,7 @@ package com.project.eshop_refact.exception;
 
 import com.project.eshop_refact.dto.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -25,8 +26,9 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     protected ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException e){
         // 첫 번쨰 에러 메시지만.
-        String message = e.getBindingResult().getFieldError().getDefaultMessage();
-        log.warn("Valdiation Error : {}", message);
+        // Null Safety 적용
+        String message = (e.getBindingResult().getFieldError() != null) ?
+                e.getBindingResult().getFieldError().getDefaultMessage() : "잘못된 요청입니다.";
 
         ErrorResponse response = ErrorResponse.builder()
                 .code("INVALID_INPUT")
@@ -34,6 +36,20 @@ public class GlobalExceptionHandler {
                 .build();
 
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    // 3. [추가] DB 무결성 예외 (Unique Constraint 등)
+    // 회원가입 레이스 컨디션 발생 시 중복 에러를 409로 처리
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    protected ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException e) {
+        log.warn("Data Integrity Violation : {}", e.getMessage());
+
+        ErrorResponse response = ErrorResponse.builder()
+                .code("DUPLICATE_RESOURCE")
+                .message("이미 존재하는 데이터입니다.") // 예: 이미 가입된 이메일
+                .build();
+
+        return new ResponseEntity<>(response, HttpStatus.CONFLICT);
     }
 
     // 나머지 예외

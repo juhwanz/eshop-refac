@@ -12,17 +12,15 @@ import java.security.Key;
 import java.util.Base64;
 import java.util.Date;
 
-
-
 @Slf4j
 @Component
 public class JwtUtil {
-
 
     private final long expirationTime;
     private final String secretKeyString;
     private Key key;
 
+    // Refesh Token : 2주 (Access Token 재발급 용도)
     private final long REFRESH_TOKEN_TIME = 14 * 24 * 60 * 60 * 1000L;
 
 
@@ -76,6 +74,7 @@ public class JwtUtil {
                 .getSubject();
     }
 
+    // 운영 관제 효율성을 위해 예외 유형별(위조 vs 만료) 로그 레벨 분리
     public boolean validateToken(String token){
         try{
             Jwts.parserBuilder()

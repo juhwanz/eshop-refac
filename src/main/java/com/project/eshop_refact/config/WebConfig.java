@@ -12,6 +12,7 @@ public class WebConfig implements WebMvcConfigurer {
 
     private final QueueInterceptor queueInterceptor;
 
+    // Traffic Throttling: 대규모 트래픽 유입 시 시스템 과부하 방지를 위한 유량 제어(Flow Control) 적용
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(queueInterceptor)

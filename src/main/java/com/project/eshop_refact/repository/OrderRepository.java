@@ -11,10 +11,14 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
+
+    // Indexing: ID 역순 정렬을 통해 최신 주문 우선 조회 (No-Offset Paging 기반)
     List<Order> findAllByUserOrderByIdDesc(User user);
+
     Page<Order> findAllByUser(User user, Pageable pageable);
 
-    // Fetch join
+    // Performance: N+1 문제 해결을 위한 Fetch Join 적용 (Order -> OrderItem -> Product)
+    // Distinct: 1:N 조인 시 발생하는 데이터 중복(Cartesian Product) 제거
     @Query("select distinct o from Order o " +
             "join fetch o.orderItems oi " +
             "join fetch oi.product p " +
@@ -22,7 +26,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "order by o.id desc")
     List<Order> findAllByUserWithFetchJoin(@Param("user") User user);
 
-    // Fetch join Test (+ paging)
+    // Optimization: Count Query 분리를 통해 불필요한 Join 연산 제거 및 페이징 성능 확보
     @Query(value = "select o from Order o join fetch o.orderItems where o.user = :user",
             countQuery = "select count(o) from Order o where o.user = :user")
     Page<Order> findAllByUserWithFetchJoinAndPaging(@Param("user") User user, Pageable pageable);
