@@ -14,26 +14,27 @@ class JwtUtilTest {
 
     private JwtUtil jwtUtil;
 
-    @BeforeEach
-    //
-    void setUp() {
-        String secret = "c2lsdmVybmluZS10ZWNoLXNwcmluZy1ib290LWp3dC10dXRvcmlhbC1zZWNyZXQtc2lsdmVybmluZS10ZWNoLXNwcmluZy1ib290LWp3dC10dXRvcmlhbC1zZWNyZXQK";
-        long expiration = 3600000;
+    private static final String TEST_SECRET_KEY = "c2lsdmVybmluZS10ZWNoLXNwcmluZy1ib290LWp3dC10dXRvcmlhbC1zZWNyZXQtMQ=="; // Base64 Encoded
+    private static final long ONE_HOUR = 3600000L;
 
-        jwtUtil = new JwtUtil(expiration, secret);
-        jwtUtil.init();
+    @BeforeEach
+    void setUp() {
+        jwtUtil = new JwtUtil(ONE_HOUR, TEST_SECRET_KEY);
+        jwtUtil.init(); //@PostConstruct 수동 호출.
     }
 
     @Test
     @DisplayName("토큰 생성 및 검증")
     void createAndValidateToken() {
-
+        //Given
         String email = "test@test.com";
         UserRoleEnum role = UserRoleEnum.USER;
 
+        //When
         String token = jwtUtil.createToken(email, role);
 
-        assertThat(token).isNotNull();
+        //Then
+        assertThat(token).isNotBlank();
         assertThat(jwtUtil.validateToken(token)).isTrue();
         assertThat(jwtUtil.getUsernameFromToken(token)).isEqualTo(email);
     }
@@ -42,13 +43,12 @@ class JwtUtilTest {
     @DisplayName("실패 : 만료된 토큰")
     void validateExpiredToken() {
         // Given : 유효시간 0 -> 즉시 만료
-        JwtUtil expiredjwtUtil = new JwtUtil(0L, "c2lsdmVybmluZS10ZWNoLXNwcmluZy1ib290LWp3dC10dXRvcmlhbC1zZWNyZXQtc2lsdmVybmluZS10ZWNoLXNwcmluZy1ib290LWp3dC10dXRvcmlhbC1zZWNyZXQK");
-        expiredjwtUtil.init();
-
-        String token = expiredjwtUtil.createToken("expired@test.com", UserRoleEnum.USER);
+        JwtUtil expiredJwtUtil = new JwtUtil(0L, TEST_SECRET_KEY);
+        expiredJwtUtil.init();
+        String expiredToken = expiredJwtUtil.createToken("expired@test.com", UserRoleEnum.USER);
 
         //when
-        boolean isValid = expiredjwtUtil.validateToken(token);
+        boolean isValid = expiredJwtUtil.validateToken(expiredToken);
 
         //Then : false여야 함.
         assertThat(isValid).isFalse();

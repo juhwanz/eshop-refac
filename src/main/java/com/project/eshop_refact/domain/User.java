@@ -6,15 +6,15 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
-@NoArgsConstructor
-@Table(name = "users")
+@NoArgsConstructor      // JPA 리플렉션을 위한 기본 생성자 (Protected 권장)
+@Table(name = "users")  // DB 예약어 충돌 방지
 public class User {
 
     @Id     // PK
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.IDENTITY) // MySQL의 Auto Increment 기능 위임해 사용.
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true) // 애플리케이션 레벨 + DB 스키마에도 유니크 제약조건 반영.
     private String email;
 
     @Column(nullable = false)
@@ -23,11 +23,11 @@ public class User {
     @Column(nullable = false)
     private String username;
 
-    // Role : H2 DB 예약어와 충돌 방지.
     @Column(nullable = false, name = "user_role")
-    @Enumerated(value = EnumType.STRING)
+    @Enumerated(value = EnumType.STRING)    // 순서 변경에 안전한 String 저장 방식 채택
     private UserRoleEnum role;
 
+    // 생성 시 필수 데이터를 강제하여, '이메일 없는 유저' 같은 불완전한 객체 생성을 원천 차단
     public User(String email, String password, String username, UserRoleEnum role) {
         this.email = email;
         this.password = password;

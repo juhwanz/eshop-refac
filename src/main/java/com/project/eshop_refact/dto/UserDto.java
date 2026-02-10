@@ -6,12 +6,15 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+// 관리 용이성을 위해 Inner Static Class로 DTO 그룹화
 public class UserDto {
 
     @Getter
     @Setter
+    @NoArgsConstructor
     public static class SignupRequest {
 
         @NotBlank(message = "이메일은 필수 입력")
@@ -33,6 +36,7 @@ public class UserDto {
 
     @Getter
     @Setter
+    @NoArgsConstructor
     public static class LoginRequest {
 
         @NotBlank(message = "이메일을 입력해주세요.")
@@ -43,8 +47,9 @@ public class UserDto {
         private String password;
     }
 
+
     @Getter
-    @AllArgsConstructor
+    @AllArgsConstructor // 응답 객체의 불변성 보장 (Setter 제거)
     public static class TokenResponse {
         private String accessToken;
         private String refreshToken;

@@ -18,6 +18,7 @@ public class ProductController {
 
     private final ProductService productService;
 
+    // 상품 등록: @Valid를 통한 입력값 검증 및 Fail-Fast 적용
     @PostMapping
     public Long registerProduct(@RequestBody @Valid ProductDto.RegisterRequest requestDto){
         return productService.registerProduct(requestDto);
@@ -28,9 +29,7 @@ public class ProductController {
         return productService.getProductById(productId);
     }
 
-    /**
-     * Legacy Offset Paging API
-     */
+    // Offset Paging: 전통적인 게시판 형태의 페이지네이션 (Count Query 발생)
     @GetMapping("/search")
     public Page<ProductDto.Response> searchProducts(
             ProductDto.SearchCondition condition,
@@ -39,10 +38,8 @@ public class ProductController {
         return productService.search(condition, pageable);
     }
 
-    /**
-     * [추가] No-Offset Paging API (성능 최적화 버전)
-     * 사용 예: GET /api/products/search/no-offset?lastProductId=123&size=10
-     */
+    // No-Offset Paging: 대용량 데이터 조회 성능 최적화 (Count Query 제거, 인덱스 활용)
+    // Infinite Scroll 구현에 적합한 Slice 반환 타입 채택
     @GetMapping("/search/no-offset")
     public Slice<ProductDto.Response> searchNoOffset(
             @RequestParam(required = false) Long lastProductId,

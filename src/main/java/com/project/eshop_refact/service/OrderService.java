@@ -19,17 +19,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-@Transactional(readOnly = true)
+@Transactional(readOnly = true) // Performance: 읽기 전용 트랜잭션 최적화 (Dirty Checking 비용 절감)
 @RequiredArgsConstructor
 public class OrderService {
 
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
+    // DIP (Dependency Inversion Principle): 구체적인 락 전략(비관적/낙관적/Redis)에 의존하지 않고 추상화에 의존
     private final StockStrategy stockStrategy;
 
     /**
-     * 주문 생성
-     * Strategy Pattern 적용: 재고 차감 방식을 런타임에 결정 (Pessimistic vs Facade)
+     * [Order Processing]
+     * Atomic Transaction: 재고 차감과 주문 생성의 원자성 보장 (All or Nothing)
+     * Strategy Pattern: 동시성 제어 로직을 위임하여 비즈니스 로직과 기술적 관심사(Locking) 분리
      */
     @Transactional
     public Long order(Long userId, Long productId, int count){
@@ -40,6 +42,7 @@ public class OrderService {
         // 재고 감소 (strategy 객체에 위임)
         Product product = stockStrategy.decrease(productId, count);
 
+        // DDD: 도메인 객체의 비즈니스 메서드를 통해 객체 생성 및 검증
         OrderItem orderItem = OrderItem.createOrderItem(product, count);
         Order order = Order.createOrder(user, List.of(orderItem));
 
@@ -47,6 +50,8 @@ public class OrderService {
         return order.getId();
     }
 
+    //'default_batch_fetch_size' 설정을 통해 1:N 관계 조회 시 N+1 문제를 In-query(IN절)로 해결
+    // Pagination Safety: 컬렉션 Fetch Join 시 발생하는 메모리 페이징(OutOfMemory) 이슈 원천 차단
     @Transactional(readOnly = true)
     public Page<OrderDto.Response> getOrders(Long userId, Pageable pageable){
         User user = userRepository.findById(userId)

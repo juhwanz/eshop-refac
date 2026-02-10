@@ -14,6 +14,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+// 요청당 1회 실행을 보장하여 불필요한 필터 중복 수행 방지
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -24,7 +25,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 
-
         String header = request.getHeader("Authorization");
 
         if(header == null || !header.startsWith("Bearer ")){
@@ -34,20 +34,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = header.substring(7);
 
+        // 2. 토큰 유효성 검증
         if(jwtUtil.validateToken(token)){
 
             String email = jwtUtil.getUsernameFromToken(token);
 
-
+            // 3. DB에서 최신 사용자 정보 조회 (권한 변경, 계정 정지 등 즉각 반영을 위해 DB 조회 선택)
             UserDetails userDetails = userDetailsServiceImpl.loadUserByUsername(email);
 
+            // 4. 인증 객체 생성 (Authentication)
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
 
+            // 5. SecurityContext에 인증 객체 저장 (ThreadLocal에 저장해 전역적 참조 가능)
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
         }
 
+        // 다음 필터로 진행
         filterChain.doFilter(request, response);
     }
 }
+
+/**
+ * OncePerRequestFilter Vs Filter : Filter 인페 구현하면 되지 왜 굳이 상속?
+ * -> 서블릿은 요청을 다른 서블릿으로 dipatch(forward) 할 때 다시 탈 수 있다.
+ */
+
+/**
+ * SecurityContextHholder? 시큐리티가 누가 로그인 했는지 정보를 담아두는 저장소. 내부적으로 ThreadLocal을 사용, 같은 쓰레드 내에서는 어디서든 인증 정보 꺼내 쓸 수 있게
+ */
+
+/**
+ * "JWT 장점이 DB 안 가는 건데, 왜 loadUserByUsername으로 DB를 조회하나요?
+ * "맞습니다. 성능상 트레이드 오프가 있습니다. 하지만 사용자가 토큰을 가진 상태에서 관리자에 의해 차단되거나 권한이 변경되었을 때, 이를 즉시 반영하기 위해 DB 조회를 선택했습니다. (만약 성능이 더 중요하다면 토큰의 Claims만으로 객체를 만들 수도 있다고 덧붙이면 베스트)"
+ */
 

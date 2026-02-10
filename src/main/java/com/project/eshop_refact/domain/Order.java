@@ -12,20 +12,22 @@ import java.util.List;
 
 @Entity
 @Getter
-@NoArgsConstructor// access = AccessLevel.PROTECTED 테스트 때문에 풀어 둠
+@NoArgsConstructor  // access = AccessLevel.PROTECTED 테스트 때문에 풀어 둠, JPA 구현체의 리플렉션(Reflection) 사용을 위한 기본 생성자
 @EntityListeners(AuditingEntityListener.class) // Auditing 기능 활성화.
-@Table(name = "orders")
+@Table(name = "orders") // DB 예약어(Order) 충돌 방지
 public class Order {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // N+1 문제 방지를 위해 지연 로딩(Lazy Loading)을 기본 전략으로 채택
     // 주문할 회원 (N : 1) | 주문 - User
     @ManyToOne(fetch = FetchType.LAZY)      //주문 정보만 필요하면 주문 정보만. ( 성능 최적화 )
     @JoinColumn(name = "user_id")
     private User user;
 
+    // 영속성 전이(Cascade): Order 삭제 시 연관된 OrderItem의 생명주기 동기화
     // 주문할 상품들 ( 1 : N ) | cascade - 주문서 삭제 시, 딸린 주문들도 같이 삭제.
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
     private List<OrderItem> orderItems = new ArrayList<>();
@@ -34,6 +36,7 @@ public class Order {
     @Column(updatable = false)
     private LocalDateTime orderDate;        // 주문 시간
 
+    // 데이터 무결성 및 확장성을 위해 EnumType.STRING 사용
     @Enumerated(EnumType.STRING)
     private OrderStatus status;             // 주문 상태
 
@@ -55,10 +58,7 @@ public class Order {
         return order;
     }
 
-    /**
-     * 비즈니스 로직: 주문 취소
-     * 배송 완료 상태에서는 취소가 불가능하다는 도메인 규칙을 포함함.
-     */
+    // 도메인 주도 설계(DDD): 비즈니스 로직을 엔티티 내부에 응집시켜 객체지향적 설계 구현
     public void cancel(){
         if(this.status == OrderStatus.COMPLETED){
             throw new IllegalStateException("이미 완료된 주문은 취소가 불가능합니다.");
