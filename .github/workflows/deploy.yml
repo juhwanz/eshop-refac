@@ -40,7 +40,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: juhwan378495@gmail.com/eshop-app:latest # 본인 아이디
+          tags: hongjuhwan/eshop-app:latest # 본인 아이디 - nickname!!
 
       # 6. EC2 서버에 원격 접속하여 새 버전으로 배포
       - name: Deploy to EC2
@@ -52,6 +52,6 @@ jobs:
           script: |
             cd ~/eshop-refact
             sudo docker-compose down
-            sudo docker pull juhwan378495@gmail.com/eshop-app:latest # 본인 아이디
+            sudo docker pull hongjuhwan/eshop-app:latest # 본인 아이디 - nickname!!!!
             sudo docker-compose up -d
             sudo docker image prune -f # 사용하지 않는 예전 이미지 삭제 (용량 확보)
