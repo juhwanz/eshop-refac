@@ -30,7 +30,7 @@ services:
   eshop-server:
     #build: . # 현재 디렉토리에 있는 Dockerfile을 읽어서 자동으로 이미지를 빌드합니다.
     #container_name: eshop-server
-    image: juhwan378495@gmail.com/eshop-app:latest
+    image: hongjuhwan/eshop-app:latest
     container_name: eshop-server
     restart: always
     ports:
