@@ -3,6 +3,7 @@ package com.project.eshop_refact.service.scheduler;
 import com.project.eshop_refact.service.queue.WaitingQueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -13,14 +14,17 @@ public class QueueScheduler {
 
     private final WaitingQueueService waitingQueueService;
 
-    // Capacity Planning: 부하 테스트(nGrinder)를 통해 산출된 TPS 한계치 반영
-    // Rate Limiting: DB Connection Pool 고갈 방지를 위한 진입 허용량 제한
+    // TODO: 향후 부하 테스트를 통해 적정 허용량 산출 필요 (현재는 임시값 100으로 설정)
     private static final long ENTER_COUNT = 100L;
 
-    // Flow Control: 주기적인 유입량 제어를 통해 시스템 과부하 방지 (Backpressure 관리)
-    // Safety: fixedDelay를 사용하여 이전 작업 지연 시 스케줄링 간격을 자동 조정 (Graceful Degradation)
     @Scheduled(fixedDelay = 1000)
+    @SchedulerLock(
+            name = "queueSchedulerLock",    // 락의 고유 이름 (이 이름으로 락을 선점)
+            lockAtLeastFor = "900ms",       // 락을 유지할 최소 시간 (중복 실행 완벽 방지)
+            lockAtMostFor = "2s"            // 락을 유지할 최대 시간 (서버 다운 시 데드락 방지)
+    )
     public void queueScheduler() {
+        log.info("Queue Scheduler 실행: 락 획득 성공");
         waitingQueueService.allowUsers(ENTER_COUNT);
     }
 }

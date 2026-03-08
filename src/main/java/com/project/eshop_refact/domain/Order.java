@@ -1,5 +1,7 @@
 package com.project.eshop_refact.domain;
 
+import com.project.eshop_refact.exception.BusinessException;
+import com.project.eshop_refact.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -61,10 +63,14 @@ public class Order {
     // 도메인 주도 설계(DDD): 비즈니스 로직을 엔티티 내부에 응집시켜 객체지향적 설계 구현
     public void cancel(){
         if(this.status == OrderStatus.COMPLETED){
-            throw new IllegalStateException("이미 완료된 주문은 취소가 불가능합니다.");
+            throw new BusinessException(ErrorCode.CANNOT_CANCEL_ORDER);
         }
 
         this.status = OrderStatus.CANCEL;
+
+        for(OrderItem orderItem : orderItems){
+            orderItem.getProduct().addStock(orderItem.getCount());
+        }
     }
 }
 

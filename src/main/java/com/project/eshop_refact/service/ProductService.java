@@ -3,12 +3,14 @@ package com.project.eshop_refact.service;
 
 import com.project.eshop_refact.domain.Product;
 import com.project.eshop_refact.dto.ProductDto;
+import com.project.eshop_refact.event.ProductCacheEvictEvent;
 import com.project.eshop_refact.exception.BusinessException;
 import com.project.eshop_refact.exception.ErrorCode;
 import com.project.eshop_refact.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional  // 쓰기 트랜잭션 - Atomicity: 상품 등록의 원자성 보장
     public Long registerProduct(ProductDto.RegisterRequest requestDto){
@@ -34,6 +37,10 @@ public class ProductService {
         Product savedProduct = productRepository.save(product);
 
         return savedProduct.getId();
+
+        // -> 최적화
+        //productRepository.save(product);
+        //return productRepository.save(product).getId(); // 이것도 가능
     }
 
     // Caching Strategy: Look-aside Pattern 적용 (Read-Through)
@@ -58,45 +65,52 @@ public class ProductService {
                 .map(ProductDto.Response::new);
     }
 
-    /**
-     * [Concurrency Control: Pessimistic Lock]
-     * - Strong Consistency: 데이터 정합성 최우선 보장 (Select ... for Update)
-     * - Cache Invalidation: 데이터 변경 시 즉시 캐시(Evict)를 날려 Stale Data 조회 방지
+
+    /*
+        [비관적 락 테스트 용] (Select ... for Update)
      */
     @Transactional  // 쓰기
-    @CacheEvict(value = "products", key = "#productId") // 데이터 변화 -> 캐시 삭제
+    // @CacheEvict 삭제 -> 트랜잭션 커밋 전 캐시 삭제로 인한 동시성 이슈 방지
     public Product decreaseStock(Long productId, int quantity) {
-        // Redisson Lock이 앞단에서 동시성을 제어하므로, 여기서는 DB 락 없이 일반 조회 후 차감 가능
-        // (단, 안전을 위해 버전 관리(@Version)나 DB 제약조건을 병행하는 것이 실무적임)
         Product product = productRepository.findByIdWithPessimisticLock(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
         product.removeStock(quantity);
+        //트랜잭션 커밋 후 캐시를 지우도록 이벤트 발행
+        eventPublisher.publishEvent(new ProductCacheEvictEvent(productId));
         return product;
     }
 
-    /**
-     * [Distributed Lock Support Implementation]
-     * - Separation of Concerns: 락 획득/해제 책임은 Facade(Redisson)에 위임하고, 본 메서드는 비즈니스 로직(차감)에 집중
-     * - Propagation: 상위 Facade 트랜잭션에 참여
+
+    /*
+        [본 상품 갯수 감소 로직 - Redis Distributed Lock]
+        - 락 획득/해제 책임은 Facade(Redisson)에 위임하고, 본 메서드는 비즈니스 로직(차감)에 집중
      */
     @Transactional  // 쓰기
-    @CacheEvict(value = "products", key = "#productId")
+    // @CacheEvict 삭제
     public Product decreaseStockWithoutLock(Long productId, int quantity){
+        // Redisson Lock이 앞단에서 동시성을 제어하므로, 여기서는 DB 락 없이 일반 조회 후 차감 가능
+        //(단, 안전을 위해 버전 관리(@Version)나 DB 제약조건을 병행하는 것이 실무적임)
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
-
         product.removeStock(quantity);
-
+        // 트랜잭션 커밋 후 캐시를 지우도록 이벤트 발행
+        eventPublisher.publishEvent(new ProductCacheEvictEvent(productId));
         return product;
     }
 
     // Data Consistency: 가격 수정 시 캐시 정합성을 위해 Evict 수행
+    // Data Consistency: 가격 수정 시 캐시 정합성을 위해 Event 발행으로 변경
     @Transactional  // 쓰기
-    @CacheEvict(value = "products", key = "#productId")
+    // @CacheEvict(value = "products", key = "#productId") // 롤백 위험이 있는 기존 방식 제거
     public ProductDto.Response updateProductPrice(Long productId, int newPrice) {
+        // 보통 가격 업데이트는 관리자 또는 소수 -> 정합성 발생할 가능 적어서 락 미적용.
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
         product.updatePrice(newPrice);
+        // 트랜잭션 커밋이 성공적으로 완료된 직후(AFTER_COMMIT) 캐시 삭제
+        eventPublisher.publishEvent(new ProductCacheEvictEvent(productId));
+
         return new ProductDto.Response(product);
     }
 }

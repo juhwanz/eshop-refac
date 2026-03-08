@@ -11,9 +11,9 @@ import java.util.Set;
 
 /**
  * [Traffic Throttling Service]
- * Architecture: Dual-Key Strategy (ZSet for Order, Set for Access)
+ * Architecture: Dual-Key Strategy (ZSet for Order, String with TTL for Access)
  * - Waiting Queue (ZSet): 시간순 정렬(FIFO) 및 대기 순번 조회 (O(logN))
- * - Active Queue (Set): 진입 허용 유저의 고속 조회 (O(1))를 통한 API Latency 최소화
+ * - Active Ticket (String + TTL): 진입 허용 유저에게 만료 시간이 있는 토큰 발급 (좀비 유저 방지 및 O(1) 고속 조회)
  */
 @Slf4j
 @Service
@@ -23,9 +23,10 @@ public class WaitingQueueService {
     private final StringRedisTemplate redisTemplate;
 
     private static final String WAITING_KEY = "waiting_queue";
-    private static final String ACTIVE_KEY = "active_queue";
+    private static final String ACTIVE_KEY_PREFIX = "active_user:";
 
     private static final long CHUNK_SIZE = 1000L;
+    private static final long ACTIVE_TTL_SECONDS = 600L;
 
     public Long registerQueue(Long userId){
         long unixTimestamp = System.currentTimeMillis();
@@ -56,17 +57,18 @@ public class WaitingQueueService {
                 break;
             }
 
-            // Pipeline: 다수의 Redis 명령(ZRem, SAdd)을 단일 네트워크 패킷으로 전송하여 RTT 최소화
+            // Pipeline: 다수의 Redis 명령(ZRem, SetEx)을 단일 네트워크 패킷으로 전송하여 RTT 최소화
             redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
                 RedisSerializer<String> stringSerializer = redisTemplate.getStringSerializer();
-                byte[] keyActive = stringSerializer.serialize(ACTIVE_KEY);
                 byte[] keyWaiting = stringSerializer.serialize(WAITING_KEY);
+                byte[] valueTrue = stringSerializer.serialize("true");
 
                 for(String userId : users){
+                    byte[] keyActive = stringSerializer.serialize(ACTIVE_KEY_PREFIX + userId);
                     byte[] valueId = stringSerializer.serialize(userId);
-                    // ACtive 큐에 등록
-                    connection.sAdd(keyActive, valueId);
-                    // Waiting 큐에서 제거
+                    // 1. 개별 유저 키에 TTL 600초(10분) 설정하여 발급
+                    connection.setEx(keyActive, ACTIVE_TTL_SECONDS, valueTrue);
+                    // 2. 대기열에서 제거
                     connection.zRem(keyWaiting, valueId);
                 }
                 return null;
@@ -77,13 +79,14 @@ public class WaitingQueueService {
         }
     }
 
-    //Interceptor에서 매 요청마다 호출되므로 O(1) 복잡도 필수
+    // Interceptor에서 매 요청마다 호출되므로 O(1) 복잡도 필수
+    // 수정: Set 조회가 아닌 개별 키 존재 여부(hasKey)로 확인
     public boolean isAllowed(Long userId) {
-        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(ACTIVE_KEY, userId.toString()));
+        return Boolean.TRUE.equals(redisTemplate.hasKey(ACTIVE_KEY_PREFIX + userId));
     }
 
+    // 수정: Set에서 제거가 아닌 개별 키 삭제(delete)로 처리
     public void removeUser(Long userId) {
-        redisTemplate.opsForSet().remove(ACTIVE_KEY, userId.toString());
+        redisTemplate.delete(ACTIVE_KEY_PREFIX + userId);
     }
 }
-

@@ -16,7 +16,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(queueInterceptor)
-                .addPathPatterns("/api/orders"); // 오직 '주문 생성' 요청만 검사
+                .addPathPatterns("/api/orders"); //오직 '주문 생성' 요청만 검사
         // .excludePathPatterns("/api/orders/queue/**"); // (나중에 대기열 확인 API는 제외해야 함)
     }
 }

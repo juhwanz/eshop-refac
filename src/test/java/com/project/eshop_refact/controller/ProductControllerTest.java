@@ -26,6 +26,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -48,9 +49,10 @@ class ProductControllerTest {
     UserDetailsServiceImpl userDetailsServiceImpl;
     @MockBean
     com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
+
     @Test
-    @DisplayName("상품 등록 API")
-    @WithMockUser // product 컨트롤러의 POST,GET API가 시큐리티 필터 통과시, "가짜 인증 유저"를 주입해 401에러 방지.
+    @DisplayName("상품 등록 API - 201 Created 반환 검증") // 테스트 이름도 명확하게!
+    @WithMockUser
     void registerProduct() throws Exception {
         // given
         ProductDto.RegisterRequest request = new ProductDto.RegisterRequest();
@@ -65,8 +67,8 @@ class ProductControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value(1L))
+                .andExpect(status().isCreated())
+                .andExpect(content().string("상품등록 성공"))
                 .andDo(print());
     }
 
