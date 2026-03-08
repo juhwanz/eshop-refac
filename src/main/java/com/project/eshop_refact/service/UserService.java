@@ -55,7 +55,7 @@ public class UserService {
 
         String refreshToken = jwtUtil.createRefreshToken(user.getEmail());
 
-        // 성능: Refresh Token 저장소로 Redis 채택 (TTL 설정으로 생명주기 자동 관리)
+        // Refresh Token 저장소로 Redis 채택 (TTL 설정으로 생명주기 자동 관리)
         redisTemplate.opsForValue().set(
                 "RT:" + user.getEmail(), refreshToken, 14, TimeUnit.DAYS
         );

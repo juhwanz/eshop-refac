@@ -35,7 +35,6 @@ public class OrderItem {
         orderItem.orderPrice = product.getPrice();
 
         //product.removeStock(count);// 삭제함 (OrderService의 StockStrategy가 이미 처리했음)
-
         return orderItem;
     }
 

@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   # 1. MySQL (Main DB)
   mysql:
@@ -23,3 +25,21 @@ services:
       - "6379:6379"
     environment:
       TZ: Asia/Seoul
+
+  # 3. Spring Boot Application (WAS)
+  eshop-server:
+    build: . # 현재 디렉토리에 있는 Dockerfile을 읽어서 자동으로 이미지를 빌드합니다.
+    container_name: eshop-server
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      # application.yaml의 설정을 환경 변수로 덮어씌워 내부 컨테이너 통신을 연결합니다.
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: local
+      JWT_SECRET_KEY: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou
+      DB_PASSWORD: 1234
+    depends_on:
+      - mysql
+      - redis

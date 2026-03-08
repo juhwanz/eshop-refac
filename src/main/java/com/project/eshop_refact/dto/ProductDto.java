@@ -3,10 +3,7 @@ package com.project.eshop_refact.dto;
 import com.project.eshop_refact.domain.Product;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 // Cohesion: 상품 관련 DTO를 Inner Static Class로 그룹화하여 관리 효율성 증대
 public class ProductDto {
@@ -28,7 +25,8 @@ public class ProductDto {
 
     }
 
-    @Data // Search Params: 동적 쿼리 필터링을 위한 파라미터 바인딩 객체
+    @Getter
+    @Setter
     public static class SearchCondition {
         private String name;
         private Integer minPrice;

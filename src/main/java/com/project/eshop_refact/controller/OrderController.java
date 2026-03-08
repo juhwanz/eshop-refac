@@ -4,12 +4,14 @@ import com.project.eshop_refact.config.UserDetailsImpl;
 import com.project.eshop_refact.dto.OrderDto;
 import com.project.eshop_refact.facade.RedissonLockStockFacade;
 import com.project.eshop_refact.service.OrderService;
+import com.project.eshop_refact.service.queue.WaitingQueueService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -22,16 +24,15 @@ public class OrderController {
 
     private final RedissonLockStockFacade redissonLockStockFacade;
     private final OrderService orderService;
-    // private final WaitingQueueService waitingQueueService; // [Security] 운영 배포 시 제거 권장
+    private final WaitingQueueService waitingQueueService; // [Security] 운영 배포 시 제거 권장
 
     @PostMapping
     public ResponseEntity<Long> createOrder(
-            @RequestBody OrderDto.Request requestDto,
+            @RequestBody @Valid OrderDto.Request requestDto,
             @AuthenticationPrincipal UserDetailsImpl userDetails
     ){
         Long userId = userDetails.getUser().getId();
 
-        //Long orderId = redissonLockStockFacade.order(userId, requestDto.getProductId(), requestDto.getCount());
         // Facade를 통해 "분산 락 -> 트랜잭션 -> 재고 차감" 순차 실행
         Long orderId = redissonLockStockFacade.order(
                 userId,
@@ -39,7 +40,7 @@ public class OrderController {
                 requestDto.getCount()
         );
 
-        return ResponseEntity.ok(orderId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(orderId);
     }
 
 
@@ -54,12 +55,10 @@ public class OrderController {
         return ResponseEntity.ok(orders);
     }
 
-    /**
-     * 대기열 등록 API (테스트용)
-     * POST /api/orders/queue
-     */
-    /*@PostMapping("/queue")
-    public Long registerQueue(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        return waitingQueueService.registerQueue(userDetails.getUser().getId());}
-    */
+    //대기열 등록 API (테스트용)
+    @PostMapping("/queue")
+    public ResponseEntity<Long> registerQueue(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        Long rank = waitingQueueService.registerQueue(userDetails.getUser().getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(rank);
+    }
 }

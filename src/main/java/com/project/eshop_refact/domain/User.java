@@ -27,7 +27,7 @@ public class User {
     @Enumerated(value = EnumType.STRING)    // 순서 변경에 안전한 String 저장 방식 채택
     private UserRoleEnum role;
 
-    // 생성 시 필수 데이터를 강제하여, '이메일 없는 유저' 같은 불완전한 객체 생성을 원천 차단
+    // 생성자는 Protected로 제한 (JPA용, 외부 직접 호출 방지)
     public User(String email, String password, String username, UserRoleEnum role) {
         this.email = email;
         this.password = password;

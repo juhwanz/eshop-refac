@@ -19,6 +19,7 @@ spring:
 
   data:
     redis:
+      # TODO: 향후 CI/CD 파이프라인 및 통합 테스트 환경의 일관성을 위해 Testcontainers 또는 Embedded Redis 도입 예정
       host: localhost
       port: 6379
 test:
@@ -26,5 +27,5 @@ test:
     delay-ms: 50 # 0.05초
 jwt:
   # 임의의 값 (Base64 인코딩된 긴 문자열)
-  secret: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou
+  secret: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou=
   expiration-time: 3600000
