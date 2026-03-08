@@ -17,6 +17,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Page<Order> findAllByUser(User user, Pageable pageable);
 
+    // 레거시
     // Performance: N+1 문제 해결을 위한 Fetch Join 적용 (Order -> OrderItem -> Product)
     // Distinct: 1:N 조인 시 발생하는 데이터 중복(Cartesian Product) 제거
     @Query("select distinct o from Order o " +
@@ -26,6 +27,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             "order by o.id desc")
     List<Order> findAllByUserWithFetchJoin(@Param("user") User user);
 
+    // 레거시/
     // Optimization: Count Query 분리를 통해 불필요한 Join 연산 제거 및 페이징 성능 확보
     @Query(value = "select o from Order o join fetch o.orderItems where o.user = :user",
             countQuery = "select count(o) from Order o where o.user = :user")

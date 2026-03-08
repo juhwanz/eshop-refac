@@ -84,6 +84,9 @@ public class OrderConcurrencyIntegrationTest {
             userRepository.save(new User("user" + i + "@test.com", "1234", "user" + i, UserRoleEnum.USER));
         }
 
+        // 스레드 시작 전 DB에서 유저 리스트를 1회만 미리 조회 (커넥션 고갈 방지)
+        List<User> users = userRepository.findAll();
+
         ExecutorService executorService = Executors.newFixedThreadPool(32);
         CountDownLatch latch = new CountDownLatch(threadCount);
 
@@ -95,9 +98,8 @@ public class OrderConcurrencyIntegrationTest {
             final int index = i;
             executorService.submit(() -> {
                 try {
-                    // 유저 ID 조회 (가입 순서대로 1, 2, 3...)
-                    // 실제 환경에선 SecurityContext에서 가져오지만 테스트라 직접 조회
-                    User user = userRepository.findAll().get(index);
+                    // 수정: 매번 DB를 찌르지 않고 메모리의 리스트에서 유저 획득
+                    User user = users.get(index);
                     redissonLockStockFacade.order(user.getId(), productId, 1);
                     successCount.getAndIncrement();
                 } catch (Exception e) {

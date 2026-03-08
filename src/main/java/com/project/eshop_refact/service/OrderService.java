@@ -19,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-@Transactional(readOnly = true) // Performance: 읽기 전용 트랜잭션 최적화 (Dirty Checking 비용 절감)
+@Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class OrderService {
 
@@ -52,7 +52,6 @@ public class OrderService {
 
     //'default_batch_fetch_size' 설정을 통해 1:N 관계 조회 시 N+1 문제를 In-query(IN절)로 해결
     // Pagination Safety: 컬렉션 Fetch Join 시 발생하는 메모리 페이징(OutOfMemory) 이슈 원천 차단
-    @Transactional(readOnly = true)
     public Page<OrderDto.Response> getOrders(Long userId, Pageable pageable){
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -63,5 +62,11 @@ public class OrderService {
         return orderPage.map(OrderDto.Response::new);
     }
 
+    @Transactional
+    public void cancelOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
+        order.cancel(); // 도메인 로직 호출 (재고 복구)
+    }
 }

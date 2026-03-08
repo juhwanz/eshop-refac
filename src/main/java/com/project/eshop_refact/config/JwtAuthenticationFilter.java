@@ -55,17 +55,3 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 }
 
-/**
- * OncePerRequestFilter Vs Filter : Filter 인페 구현하면 되지 왜 굳이 상속?
- * -> 서블릿은 요청을 다른 서블릿으로 dipatch(forward) 할 때 다시 탈 수 있다.
- */
-
-/**
- * SecurityContextHholder? 시큐리티가 누가 로그인 했는지 정보를 담아두는 저장소. 내부적으로 ThreadLocal을 사용, 같은 쓰레드 내에서는 어디서든 인증 정보 꺼내 쓸 수 있게
- */
-
-/**
- * "JWT 장점이 DB 안 가는 건데, 왜 loadUserByUsername으로 DB를 조회하나요?
- * "맞습니다. 성능상 트레이드 오프가 있습니다. 하지만 사용자가 토큰을 가진 상태에서 관리자에 의해 차단되거나 권한이 변경되었을 때, 이를 즉시 반영하기 위해 DB 조회를 선택했습니다. (만약 성능이 더 중요하다면 토큰의 Claims만으로 객체를 만들 수도 있다고 덧붙이면 베스트)"
- */
-

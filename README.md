@@ -1,13 +1,12 @@
 # 🛒 E-Shop Refactoring (High-Traffic Backend)
 
-> **"코로나 시절 겪었던 서버 터짐으로 인한 불편함"에 대한 궁금증을 코드로 해결해본 프로젝트**
 
 ![Java](https://img.shields.io/badge/Java-17-orange?logo=java)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green?logo=springboot)
 ![Redis](https://img.shields.io/badge/Redis-Redisson-red?logo=redis)
 ![QueryDSL](https://img.shields.io/badge/QueryDSL-5.0-lightgrey)
 
-## 📝 Project Intro
+## 📝 프로젝트 개요
 백엔드 개발자를 꿈꾸며 가장 고민했던 부분은 **"내가 짠 코드가 10만 명의 사용자가 동시에 눌러도 버틸 수 있을까?"**였습니다.
 이 프로젝트는 기존의 단순한 쇼핑몰 로직을 **대규모 트래픽 환경**을 가정하여 리팩토링한 결과물입니다. 동시성 이슈로 재고가 안 맞거나, 쿼리가 느려 DB가 뻗는 상황을 직접 시뮬레이션하고, **Redis 분산 락**과 **No-Offset 페이징** 기술을 도입해 문제를 해결하는 과정에 집중했습니다.
 
@@ -18,8 +17,19 @@
 | **Framework** | Spring Boot 3.x | Spring Security, JPA |
 | **Database** | MySQL 8.0, Redis | Prod(MySQL), Cache/Lock(Redis) |
 | **Testing** | JUnit5, Mockito | 통합 테스트 위주의 검증 |
+## 핵심 아키텍처 및 설계 원칙
 
-## 🔥 Key Troubleshooting (치열했던 고민의 흔적들)
+### 1. DDD(도메인 주도 설계) 및 객체지향 패러다임 적용
+- **DDD (도메인 주도 설계) 및 객체지향 패러다임 적용**
+  - 무분별한 Setter 사용을 지양하고, 기본 생성자의 접근 제어자를 `PROTECTED`로 제한하여 엔티티의 불변성을 보호했습니다.
+  - `removeStock`, `cancel` 등 핵심 비즈니스 로직을 Service가 아닌 도메인 엔티티 내부에 응집시켜 캡슐화(Rich Domain Model)를 구현했습니다.
+  - 정적 팩토리 메서드(`createOrder`, `createOrderItem`)를 통해 객체 생성과 연관관계 매핑 로직을 일원화했습니다.
+- **디자인 패턴을 통한 결합도 완화 (Decoupling)**
+  - **Facade 패턴:** `RedissonLockStockFacade`를 도입하여 '락 획득/해제'의 인프라적 관심사와 '재고 차감'이라는 비즈니스 트랜잭션의 관심사를 완벽히 분리했습니다.
+  - **Strategy 패턴:** 동시성 제어 방식(일반 차감 vs 비관적 락)을 런타임에 유연하게 교체할 수 있도록 `StockStrategy` 인터페이스를 구현해 OCP(개방-폐쇄 원칙)를 준수했습니다. 
+
+
+## Troubleshooting
 
 ### 1. "DB 락을 걸었더니, 로그인조차 안 됩니다." (Redis 분산 락 도입)
 * **상황:** 재고 정합성을 맞추기 위해 `Pessimistic Lock`(비관적 락)을 걸었습니다.

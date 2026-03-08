@@ -19,5 +19,13 @@ public class ErrorResponse {
                 .message(errorCode.getMessage())
                 .build();
     }
+
+    // 오버로딩 메서드 : 유효성 검사 등 커스텀 메시지 필요시.
+    public static ErrorResponse of(ErrorCode errorCode, String customMessage){
+        return ErrorResponse.builder()
+                .code(errorCode.name())
+                .message(customMessage)
+                .build();
+    }
 }
 

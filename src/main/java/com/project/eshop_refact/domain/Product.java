@@ -25,7 +25,7 @@ public class Product {
     @Column(nullable = false)
     private int stockQuantity;
 
-    // Invariant: 생성 시점부터 유효한 상태(Valid State)를 보장하기 위해 생성자 주입 강제
+    // 생성 시점부터 유효한 상태를 보장하기 위해 생성자 주입 강제 -> 무분별한 setter 방지.
     public Product(String name, int price, int stockQuantity) {
         this.name = name;
         this.price = price;
@@ -49,7 +49,7 @@ public class Product {
 
     public void updatePrice(int newPrice){
         if (newPrice < 0) {
-            throw new IllegalArgumentException("가격은 0원 이상이어야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);
         }
         this.price = newPrice;
     }

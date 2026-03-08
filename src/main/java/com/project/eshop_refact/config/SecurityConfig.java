@@ -36,7 +36,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/signup", "/api/users/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/products").hasAuthority("ADMIN")
+                        //.requestMatchers(HttpMethod.POST, "/api/products").permitAll() // 테스트 시에만 사용
+                        .requestMatchers(HttpMethod.POST, "/api/products").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
