@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # 1. 공통 캐시 서버 (Redis)
+  redis:
+    image: redis:latest
+    container_name: eshop-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      TZ: Asia/Seoul
+
+  # 2. 교대 근무자 1 (Blue - 8080 포트)
+  eshop-blue:
+    image: hongjuhwan/eshop-app:latest
+    container_name: eshop-blue
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://eshop-db.c1c2g4k4sc8k.ap-northeast-2.rds.amazonaws.com:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: admin
+      DB_PASSWORD: "wnghks15!" # 본인의 RDS 비밀번호 유지
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET_KEY: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      - redis
+
+  # 3. 교대 근무자 2 (Green - 8081 포트)
+  eshop-green:
+    image: hongjuhwan/eshop-app:latest
+    container_name: eshop-green
+    restart: always
+    ports:
+      - "8081:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://eshop-db.c1c2g4k4sc8k.ap-northeast-2.rds.amazonaws.com:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: admin
+      DB_PASSWORD: "wnghks15!"
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET_KEY: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      - redis
