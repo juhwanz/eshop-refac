@@ -60,7 +60,6 @@ public class Order {
         return order;
     }
 
-    // 도메인 주도 설계(DDD): 비즈니스 로직을 엔티티 내부에 응집시켜 객체지향적 설계 구현
     public void cancel(){
         if(this.status == OrderStatus.COMPLETED){
             throw new BusinessException(ErrorCode.CANNOT_CANCEL_ORDER);

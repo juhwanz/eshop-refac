@@ -29,6 +29,18 @@ public class User {
 
     // 생성자는 Protected로 제한 (JPA용, 외부 직접 호출 방지)
     public User(String email, String password, String username, UserRoleEnum role) {
+        if(email == null || email.isBlank()){
+            throw new IllegalArgumentException("이메일은 필수입니다.");
+        }
+        if(password == null || password.isBlank()){
+            throw new IllegalArgumentException("비밀번호는 필수입니다.");
+        }
+        if (username == null || username.isBlank()) {
+            throw new IllegalArgumentException("사용자 이름은 필수입니다.");
+        }
+        if (role == null) {
+            throw new IllegalArgumentException("권한 역할은 필수입니다.");
+        }
         this.email = email;
         this.password = password;
         this.username = username;
