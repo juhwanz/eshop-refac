@@ -28,8 +28,14 @@ public class OrderItem {
     private int count;
 
     public static OrderItem createOrderItem(Product product, int count){
+        if(product == null){
+            throw new IllegalArgumentException("주문할 상품 정보가 없습니다.");
+        }
+        if(count <= 0){
+            throw new IllegalArgumentException("주문 수량은 1개 이상이어야 합니다.");
+        }
         OrderItem orderItem = new OrderItem();
-        // Setter 대신 내부 필드에 직접 할당
+
         orderItem.product = product;
         orderItem.count = count;
         orderItem.orderPrice = product.getPrice();
