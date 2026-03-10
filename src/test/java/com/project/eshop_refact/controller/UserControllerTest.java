@@ -3,6 +3,8 @@ package com.project.eshop_refact.controller;
 import com.project.eshop_refact.config.JwtUtil;
 import com.project.eshop_refact.config.SecurityConfig;
 import com.project.eshop_refact.dto.UserDto;
+import com.project.eshop_refact.exception.BusinessException;
+import com.project.eshop_refact.exception.ErrorCode;
 import com.project.eshop_refact.service.UserDetailsServiceImpl;
 import com.project.eshop_refact.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -106,6 +109,67 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest()) // 400 에러 기대
+                .andDo(print());
+    }
+
+    @Test
+    @DisplayName("로그인 실패 : 유효하지 않은 입력값 (400 Bad Request)")
+    @WithMockUser
+    void login_fail_invalid_input() throws Exception{
+        //given
+        UserDto.LoginRequest request = new UserDto.LoginRequest();
+        request.setEmail("no-email-format");
+        request.setPassword("");
+
+        mockMvc.perform(post("/api/users/login")
+                    .with(csrf())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andDo(print());
+    }
+
+    @Test
+    @DisplayName("회원가입 실패: 이미 존재하는 이메일 (비즈니스 예외)")
+    @WithMockUser
+    void signup_fail_duplicated_email() throws Exception{
+        // given
+        UserDto.SignupRequest request = new UserDto.SignupRequest();
+        request.setEmail("duplicate@email.com");
+        request.setPassword("password123!");
+        request.setUsername("tester");
+
+        //void 메서드는 willThrow()를 먼저 쓰고, given(객체).메서드() 순서로 작성합니다.
+        willThrow(new BusinessException(ErrorCode.EMAIL_DUPLICATION))
+                .given(userService).signup(any());
+
+        mockMvc.perform(post("/api/users/signup")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andDo(print());
+    }
+
+    @Test
+    @DisplayName("로그인 실패 : 비밀번호 불일치")
+    @WithMockUser
+    void login_fail_password() throws Exception{
+        //given
+        // given
+        UserDto.LoginRequest request = new UserDto.LoginRequest();
+        request.setEmail("test@email.com");
+        request.setPassword("wrongPassword!!!");
+
+        // [핵심] 서비스의 로그인 로직이 비밀번호 불일치 예외를 던지도록 조작
+        given(userService.login(any())).willThrow(new BusinessException(ErrorCode.LOGIN_FAILED));
+
+        // when & then
+        mockMvc.perform(post("/api/users/login")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()) // 또는 401(Unauthorized)
                 .andDo(print());
     }
 }

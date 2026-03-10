@@ -9,6 +9,8 @@ import com.project.eshop_refact.domain.OrderStatus;
 import com.project.eshop_refact.domain.User;
 import com.project.eshop_refact.domain.UserRoleEnum;
 import com.project.eshop_refact.dto.OrderDto;
+import com.project.eshop_refact.exception.BusinessException;
+import com.project.eshop_refact.exception.ErrorCode;
 import com.project.eshop_refact.facade.RedissonLockStockFacade;
 import com.project.eshop_refact.interceptor.QueueInterceptor;
 import com.project.eshop_refact.service.OrderService;
@@ -43,24 +45,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-// @WebMVcTest Vs @SpringBootTest
-// -> 컨트롤러 계층만 잘라서 띄움. -> DB까지 띄우지 않고, Service이하는 전부
-// 가짜객체 (Mock)로 대체 -> Service, Repository는 @MockBean으로 채워야 함.
-// "왜 WebMVCTest? -> API 계층의 유효성 검증 + HTTP 응답만 빠르게 테스트하기 위해서.
 @WebMvcTest(controllers = OrderController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class))
-@Import({WebConfig.class, QueueInterceptor.class}) // @WebMvc는 Controller는 스캔, 인터셉트나 Config는 넣어줘야 함/
+@Import({WebConfig.class, QueueInterceptor.class})
 class OrderControllerTest {
 
-    // MockMvc -> WAS(Tomcat)을 띄우지 않고도, 스프링 MVC(HTTP Request/Response)을 재현하는 테스트 도구.
     @Autowired MockMvc mockMvc;
-    // 직렬화 : 자바 객체(RequestDto) -> JSON으로 -write / 반대 read를 수행.
     @Autowired ObjectMapper objectMapper;
 
-   // @MockBean Vs @Mock
-    // @Mock(Mockito) : 스프링 컨텍스트와 상관 없는 순사 자바 가짜 객체.
-    // @MockBean(Spring) : 스프링 컨텍스트에 들어있는 '진짜 빈'을 알아내고, 등록.
-   // -> 주의: @MockBean을 쓰면 컨텍스트가 오염되어, 다른 테스트에서 컨텍스트를 재사용하지 못하고 새로 띄울 수 있어 속도가 느려질 수 있습니다.
     @MockBean OrderService orderService;
     @MockBean RedissonLockStockFacade redissonLockStockFacade;
     @MockBean com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
@@ -73,24 +65,15 @@ class OrderControllerTest {
 
     private UserDetailsImpl testUserDetails;
 
-
-    //@Test 실행되기 '직전'에 매번 실행. -> 테스트 간의 간섭을 막기위해 매번 새 객체 생성.
+    //Test 실행되기 '직전'에 매번 실행. -> 테스트 간의 간섭을 막기위해 매번 새 객체 생성.
     @BeforeEach
     void setUp() {
-        // Mock User 생성 (ID 필수) - Heap에 생성.
         User user = new User("user@test.com", "pw", "user", UserRoleEnum.USER);
 
-        // Reflection
-        // User의 id는 private -> 외부에서 접근 불가 => Reflection APi를 사용해 접근 제어자 검사(Access Check)를 무시하고 강제로 값 주입
-        // 단점 : 컴파일 타임에 타입 체크 불가, JIT 컴파일러 최적화 방해, 캡슐화 깸
         ReflectionTestUtils.setField(user, "id", 1L);
 
-        // 인증 객체 생성
         testUserDetails = new UserDetailsImpl(user);
 
-        // [Test Pattern] Stubbing (행동 정의)
-        // "WaitingQueueService야, 누가 와서 isAllowed 물어보면 무조건 true라고 대답해!"
-        // any(): ArgumentMatcher. 어떤 인자가 들어오든 상관없음.
         given(waitingQueueService.isAllowed(any())).willReturn(true);
     }
 
@@ -102,21 +85,18 @@ class OrderControllerTest {
         request.setProductId(100L);
         request.setCount(1);
 
-        // [핵심] Interceptor 동작 검증
-        // setUp에서 true로 설정했지만, 이 테스트에서만 false로 덮어씁니다(Overriding).
-        // Interceptor가 waitingQueueService.isAllowed()를 호출했을 때 false가 반환되면 -> false 리턴 -> Controller 진입 차단.
         given(waitingQueueService.isAllowed(anyLong())).willReturn(false);
 
         // when & then
         mockMvc.perform(post("/api/orders")
-                        .with(csrf()) // [Security] CSRF 토큰: POST 요청 시 필수. 없으면 403 Forbidden.
-                        .with(user(testUserDetails)) // [Security] MockUser: 인증된 사용자 주입 (로그인 과정 생략)
+                        .with(csrf())
+                        .with(user(testUserDetails))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request))) // 객체 -> JSON String 변환
-                .andExpect(status().isTooManyRequests()) // [HTTP Status] 429: 요청이 너무 많음 (Rate Limiting)
-                .andExpect(jsonPath("$.code").value("QUEUE_WAITING")) // JSON 응답 필드 검증
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("QUEUE_WAITING"))
                 .andExpect(jsonPath("$.message").exists())
-                .andDo(print()); // 요청/응답 로그 출력 (디버깅용)
+                .andDo(print());
     }
 
     @Test
@@ -127,9 +107,6 @@ class OrderControllerTest {
         request.setProductId(100L);
         request.setCount(2);
 
-        // Service Mocking
-        // Controller는 Facade가 어떻게 동작하는지 모릅니다(Black Box).
-        // 그냥 "Facade가 500L을 리턴할 것이다"라고 가정하고, Controller가 그걸 잘 반환하는지만 봅니다.
         given(redissonLockStockFacade.order(eq(1L), eq(100L), eq(2))).willReturn(500L);
 
         // when & then
@@ -138,31 +115,63 @@ class OrderControllerTest {
                         .with(user(testUserDetails)) // 로그인한 유저 주입
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$").value(500L)) // 반환된 ID 확인
                 .andDo(print());
     }
 
     @Test
+    @DisplayName(" 실패 : 주문 생성 : 수량이 0 이하일 경우 400 Bad Reques")
+    void createOrder_fail() throws Exception{
+        //given
+        OrderDto.Request request = new OrderDto.Request();
+        request.setProductId(100L);
+        request.setCount(0);
+
+        //when & Then
+        mockMvc.perform(post("/api/orders")
+                    .with(csrf())
+                    .with(user(testUserDetails))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andDo(print());
+    }
+
+    @Test
+    @DisplayName("[실패] 주문 생성: 재고 부족 시 비즈니스 예외 발생")
+    void createOrder_Fail_Out_Of_Stock() throws Exception {
+        // given
+        OrderDto.Request request = new OrderDto.Request();
+        request.setProductId(100L);
+        request.setCount(10); // 요청 수량
+
+        // Facade에서 재고 부족 예외를 던지도록 조작
+        given(redissonLockStockFacade.order(anyLong(), anyLong(), anyInt()))
+                .willThrow(new BusinessException(ErrorCode.OUT_OF_STOCK));
+
+        // when & then
+        mockMvc.perform(post("/api/orders")
+                        .with(csrf())
+                        .with(user(testUserDetails))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest()) // ErrorCode에 정의된 상태 코드에 맞게 변경
+                .andDo(print());
+    }
+    @Test
     @DisplayName("주문 목록 조회 API 성공 테스트")
     void getOrders() throws Exception {
         // given
-        // 1. 가짜 Order 객체 생성 (빈 껍데기)
         Order order = new Order();
 
-        // ReflectionTestUtils가 반복됩니다.
-        // 실무였다면: Order order = Order.createForTest(10L, OrderStatus.ORDER); 같은 Factory Method를 만들었을 겁니다.
         ReflectionTestUtils.setField(order, "id", 10L);
         ReflectionTestUtils.setField(order, "status", OrderStatus.ORDER);
 
-        // [JPA Deep Dive] N+1 문제 방지
-        // orderItems를 초기화하지 않고 조회하면, 나중에 접근할 때 NullPointer가 나거나 불필요한 프록시 초기화가 일어날 수 있습니다.
-        // 여기서는 빈 리스트를 넣어주어 "연관된 아이템 없음"을 명시합니다.
         ReflectionTestUtils.setField(order, "orderItems", new ArrayList<>()); // N+1 방지용 빈 리스트
 
-        // PageImpl: Spring Data JPA의 Page 인터페이스 구현체
         Page<OrderDto.Response> pageResponse = new PageImpl<>(List.of(new OrderDto.Response(order)));
-        // Controller -> Service 호출 시, Page 객체를 리턴하도록 Stubbing
+
         given(orderService.getOrders(eq(1L), any())).willReturn(pageResponse);
 
         // when & then
@@ -171,6 +180,22 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].orderId").value(10L))
                 .andExpect(jsonPath("$.content[0].orderStatus").value("ORDER"))
+                .andDo(print());
+    }
+
+    @Test
+    @DisplayName("대기열 토큰 발급 API 성공 테스트")
+    void registerQueue() throws Exception {
+        // given
+        Long expectedRank = 15L; // 예상 대기 순번
+        given(waitingQueueService.registerQueue(anyLong())).willReturn(expectedRank);
+
+        // when & then
+        mockMvc.perform(post("/api/orders/queue")
+                        .with(csrf())
+                        .with(user(testUserDetails)))
+                .andExpect(status().isCreated()) // 201 Created 검증
+                .andExpect(jsonPath("$").value(expectedRank))
                 .andDo(print());
     }
 }
