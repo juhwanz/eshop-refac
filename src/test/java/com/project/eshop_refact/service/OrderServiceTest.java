@@ -1,6 +1,7 @@
 package com.project.eshop_refact.service;
 
 import com.project.eshop_refact.domain.*;
+import com.project.eshop_refact.dto.OrderDto;
 import com.project.eshop_refact.exception.BusinessException;
 import com.project.eshop_refact.exception.ErrorCode;
 import com.project.eshop_refact.repository.OrderRepository;
@@ -12,10 +13,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -65,9 +72,97 @@ public class OrderServiceTest {
         Long userId = 999L;
         given(userRepository.findById(userId)).willReturn(Optional.empty());
 
-        // When & Tehn
+        // When & Then
         assertThatThrownBy(() -> orderService.order(userId, 1L, 1))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("주문 실패 : 재고 부족 시 예외 발생 (StockStrategy 예외 전파)")
+    void orderFail_outOfStock() {
+        // Given
+        Long userId = 1L;
+        Long productId = 100L;
+        int count = 20; // 재고를 초과하는 수량
+
+        User user = new User("user@test.com", "pw", "user", UserRoleEnum.USER);
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // 전략 객체(Lock)에서 재고 부족 예외가 터진다고 가정
+        given(stockStrategy.decrease(productId, count))
+                .willThrow(new BusinessException(ErrorCode.OUT_OF_STOCK));
+
+        // When & Then
+        assertThatThrownBy(() -> orderService.order(userId, productId, count))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.OUT_OF_STOCK);
+    }
+
+    @Test
+    @DisplayName("주문 목록 조회 성공")
+    void getOrders_success() {
+        // Given
+        Long userId = 1L;
+        User user = new User("user@test.com", "pw", "user", UserRoleEnum.USER);
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // [수정] 필드가 채워진 정상적인 Order 객체 생성
+        Product product = new Product("item", 10000, 10);
+        OrderItem orderItem = OrderItem.createOrderItem(product, 1);
+        Order order = Order.createOrder(user, List.of(orderItem));
+
+        ReflectionTestUtils.setField(order, "id", 10L);
+        Page<Order> expectedPage = new PageImpl<>(List.of(order));
+
+        given(orderRepository.findAllByUser(any(User.class), any())).willReturn(expectedPage);
+
+        // When
+        Page<OrderDto.Response> result = orderService.getOrders(userId, PageRequest.of(0, 10));
+
+        // Then
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getOrderId()).isEqualTo(10L);
+    }
+
+
+    @Test
+    @DisplayName("주문 취소 성공 (도메인 로직 호출 검증)")
+    void cancelOrder_success() {
+        // [1] Given: 최초 재고 5개인 상품 준비
+        Product product = new Product("item", 10000, 5);
+        User user = new User("test", "pw", "user", UserRoleEnum.USER);
+
+        // [2] 주문 생성
+        // 현재 OrderItem 생성 시 재고를 안 줄이므로, 테스트를 위해 수동으로 줄여줍니다.
+        product.removeStock(2); // <--- 테스트 환경에 맞게 수동 차감 추가 (5 -> 3)
+
+        OrderItem orderItem = OrderItem.createOrderItem(product, 2);
+        Order order = Order.createOrder(user, List.of(orderItem));
+
+        // [검증 1] 취소 전 재고가 3인지 확인
+        assertThat(product.getStockQuantity()).isEqualTo(3);
+
+        given(orderRepository.findById(10L)).willReturn(Optional.of(order));
+
+        // [3] When: 주문 취소 실행 (내부에서 orderItem.getProduct().addStock(2) 호출됨)
+        orderService.cancelOrder(10L);
+
+        // [4] Then: 취소 후 재고가 다시 5인지 확인
+        assertThat(product.getStockQuantity()).isEqualTo(5);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
+    }
+
+    @Test
+    @DisplayName("주문 취소 실패 : 존재하지 않는 주문")
+    void cancelOrder_fail_notFound() {
+        // Given
+        Long orderId = 999L;
+        given(orderRepository.findById(orderId)).willReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> orderService.cancelOrder(orderId))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
     }
 }
