@@ -2,6 +2,7 @@ package com.project.eshop_refact.service;
 
 import com.project.eshop_refact.config.JwtUtil;
 import com.project.eshop_refact.domain.User;
+import com.project.eshop_refact.domain.UserRoleEnum;
 import com.project.eshop_refact.dto.UserDto;
 import com.project.eshop_refact.exception.BusinessException;
 import com.project.eshop_refact.repository.UserRepository;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
@@ -75,7 +77,7 @@ class UserServiceTest {
         request.setEmail("test@test.com");
         request.setPassword("1234");
 
-        User fakeUser = new User("test@test.com", "encodedPw", "tester", null);
+        User fakeUser = new User("test@test.com", "encodedPw", "tester", UserRoleEnum.USER);
 
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(fakeUser));
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
