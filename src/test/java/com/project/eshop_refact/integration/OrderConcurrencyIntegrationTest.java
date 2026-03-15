@@ -98,7 +98,6 @@ public class OrderConcurrencyIntegrationTest {
             final int index = i;
             executorService.submit(() -> {
                 try {
-                    // 수정: 매번 DB를 찌르지 않고 메모리의 리스트에서 유저 획득
                     User user = users.get(index);
                     redissonLockStockFacade.order(user.getId(), productId, 1);
                     successCount.getAndIncrement();
