@@ -63,9 +63,5 @@ public class OrderQueryIntegrationTest {
         );
 
         System.out.println("========== [조회 종료] ==========");
-
-        // 눈으로 로그 확인:
-        // 1. select from orders ... (1번)
-        // 2. select from order_item ... (1번? 아니면 10번?)
     }
 }
