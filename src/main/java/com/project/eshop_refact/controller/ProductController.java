@@ -28,36 +28,36 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}")
-    public ProductDto.Response getProductById(@PathVariable Long productId) {
-        return productService.getProductById(productId);
+    public ResponseEntity<ApiResponse<ProductDto.Response>> getProductById(@PathVariable Long productId) {
+        return ResponseEntity.ok(ApiResponse.success("상품 조회 성공", productService.getProductById(productId)));
     }
 
     // Offset Paging: 전통적인 게시판 형태의 페이지네이션 (Count Query 발생)
     @GetMapping("/search")
-    public Page<ProductDto.Response> searchProducts(
-            ProductDto.SearchCondition condition,
+    public ResponseEntity<ApiResponse<Page<ProductDto.Response>>> searchProducts(
+            @ModelAttribute ProductDto.SearchCondition condition,
             @PageableDefault(size = 10) Pageable pageable
     ){
-        return productService.search(condition, pageable);
+        return ResponseEntity.ok(ApiResponse.success("상품 검색 성공",productService.search(condition,pageable)));
     }
 
     // No-Offset Paging: 대용량 데이터 조회 성능 최적화 (Count Query 제거, 인덱스 활용)
     // Infinite Scroll 구현에 적합한 Slice 반환 타입 채택
     @GetMapping("/search/no-offset")
-    public Slice<ProductDto.Response> searchNoOffset(
+    public ResponseEntity<ApiResponse<Slice<ProductDto.Response>>> searchNoOffset(
             @RequestParam(required = false) Long lastProductId,
             ProductDto.SearchCondition condition,
             @PageableDefault(size = 10) Pageable pageable
     ) {
-        return productService.searchNoOffset(lastProductId, condition, pageable);
+        return ResponseEntity.ok(ApiResponse.success("상품 스크롤 검색 성공", productService.searchNoOffset(lastProductId, condition, pageable)));
     }
 
     // 가격 수정 API
     @PatchMapping("/{productId}/price")
     public ResponseEntity<ApiResponse<ProductDto.Response>> updateProductPrice(
             @PathVariable Long productId,
-            @RequestParam int newPrice) {
-        ProductDto.Response response = productService.updateProductPrice(productId, newPrice);
+            @RequestBody @Valid ProductDto.PriceUpdateRequest request) {
+        ProductDto.Response response = productService.updateProductPrice(productId, request.getNewPrice());
         return ResponseEntity.ok(ApiResponse.success("가격수정 성공", response));
     }
 }
