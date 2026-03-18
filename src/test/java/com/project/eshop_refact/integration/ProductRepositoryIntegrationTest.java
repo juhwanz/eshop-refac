@@ -11,6 +11,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -69,5 +70,30 @@ public class ProductRepositoryIntegrationTest {
 
         // then
         assertThat(result.getContent()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("QueryDSL No - offset 페이징 : lastProductId 보다 작은 데이터 순차 조회")
+    void searchNoOffsetTest(){
+        // given
+        Product p1 = productRepository.save(new Product("Item1", 1000, 10));
+        Product p2 = productRepository.save(new Product("Item2", 2000, 10));
+        Product p3 = productRepository.save(new Product("Item3", 3000, 10));
+        Product p4 = productRepository.save(new Product("Item4", 4000, 10));
+
+        ProductDto.SearchCondition condition = new ProductDto.SearchCondition();
+        PageRequest pageRequest = PageRequest.of(0, 2); // 2개씩 조회
+
+        Long lastProductId = p4.getId(); // 4번 아이템부터 역순(desc)으로 조회 시작
+
+        // when
+        // lastProductId보다 작은 ID를 최신순(desc)으로 2개 가져오므로 ID 3, 2가 조회되어야 함
+        Slice<Product> result = productRepository.searchNoOffset(lastProductId, condition, pageRequest);
+
+        // then
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getContent()).extracting("name")
+                .containsExactly("Item3", "Item2");
+        assertThat(result.hasNext()).isTrue(); // 다음 페이지(Item1)가 존재해야 하므로 true
     }
 }

@@ -1,8 +1,5 @@
 package com.project.eshop_refact.integration;
 
-// JPA - saveAll() 대신 JDBC Batch Update를 사용해, 100만 건을 단 10초 이내로 떄려 박음.
-// saveAll 은 몇 분 걸림.
-
 import com.project.eshop_refact.domain.Product;
 import com.project.eshop_refact.dto.ProductDto;
 import com.project.eshop_refact.repository.ProductRepository;
@@ -13,12 +10,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
+
+
+// JPA - saveAll() 대신 JDBC Batch Update를 사용해, 100만 건을 단 10초 이내로 떄려 박음.
+// saveAll 은 몇 분 걸림.
 @SpringBootTest
 public class ProductDeepPaginationTest {
 
@@ -87,17 +90,19 @@ public class ProductDeepPaginationTest {
     }
 
     @Test
-    @DisplayName("OffSet vs No-Offset")
+    @DisplayName("OffSet vs No-Offset 검증 및 성능 비교")
     void compareSet(){
         // 1. 초기화 비용 제거
         productRepository.searchNoOffset(null, new ProductDto.SearchCondition(), PageRequest.of(0,10));
 
         // 2. [기존 방식] 끝 페이지 (Offset 40만)
         long startOld = System.currentTimeMillis();
+
         productRepository.search(
                 new ProductDto.SearchCondition(),
                 PageRequest.of(40000, 10) // 40,000 페이지 * 10 = 400,000
         );
+
         long endOld = System.currentTimeMillis();
         long timeOld = endOld - startOld;
 
@@ -106,19 +111,27 @@ public class ProductDeepPaginationTest {
         // No-Offset은 "어디를 조회하든" 속도가 똑같아야 함.
         // 테스트를 위해 적당한 중간 ID값을 lastProductId로 넘김 (예: 100,000)
         long startNew = System.currentTimeMillis();
-        productRepository.searchNoOffset(
+
+        Slice<Product> resultNew = productRepository.searchNoOffset(
                 100000L, // 직전 페이지의 마지막 ID라고 가정 (인덱스 탐색 시작점)
                 new ProductDto.SearchCondition(),
                 PageRequest.of(0, 10) // offset은 항상 0
         );
+
         long endNew = System.currentTimeMillis();
         long timeNew = endNew - startNew;
 
         // 결과 출력
-        System.out.println(" [Offset vs No-Offset 성능 대결]");
+        System.out.println(" [Offset vs No-Offset 성능 차이]");
         System.out.println(" 1. 기존 Offset (40만 건 스캔): " + timeOld + "ms");
         System.out.println(" 2. 개선 No-Offset (인덱스): " + timeNew + "ms");
         System.out.println(" -> 성능 개선: 약 " + (timeOld / (double)(timeNew == 0 ? 1 : timeNew)) + "배 빨라짐");
 
+        // No Offset이 offset방식보다 최소 10배 빠르다는 것 검증 (CI/CD 용)
+        // -> 만약 No-offset 로직이 망가지면, 이 테스트 실패 -> 배포 방지
+        assertThat(timeNew).isLessThan(timeOld); // -> 테스트용 DB(H2)여도 더 빠름(DB연결하면 무조건 더 빠름)
+
+        // 결과 데이터 개수 정상적으로 가져오는지 검증
+        assertThat(resultNew.getContent()).isNotEmpty();
     }
 }
