@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class SwaggerConfig {
 
-    // API 명세화 및 테스트 환경 구축 (Frontend 협업 효율성 증대)
+    // API 명세화 및 테스트 환경
     @Bean
     public OpenAPI openAPI() {
         String jwtSchemeName = "jwtAuth";
@@ -27,7 +27,7 @@ public class SwaggerConfig {
 
         return new OpenAPI()
                 .info(new Info()
-                        .title("MyRealEShop API 문서")
+                        .title("EShop API 문서")
                         .description("스프링 부트로 만든 이커머스 프로젝트 API 명세서입니다.")
                         .version("1.0.0"))
                 .addSecurityItem(securityRequirement)

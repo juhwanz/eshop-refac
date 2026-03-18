@@ -1,6 +1,4 @@
 spring:
-  profiles:
-    active: test
 
   datasource:
     url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
@@ -19,12 +17,12 @@ spring:
 
   data:
     redis:
-      # TODO: 향후 CI/CD 파이프라인 및 통합 테스트 환경의 일관성을 위해 Testcontainers 또는 Embedded Redis 도입 예정
-      host: localhost
-      port: 6379
+      # 향후 Testcontainers 또는 Embedded Redis 도입을 위한 환경변수 처리
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 test:
   simulation:
-    delay-ms: 50 # 0.05초
+    delay-ms: 50 # 0.05초 성능 지연 테스트용 (Performance / 실험 테스트 클래스에서만 활용)
 jwt:
   # 임의의 값 (Base64 인코딩된 긴 문자열)
   secret: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou=
