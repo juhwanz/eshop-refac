@@ -4,6 +4,7 @@ import com.project.eshop_refact.domain.Order;
 import com.project.eshop_refact.domain.OrderItem;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -65,4 +66,9 @@ public class OrderDto {
         }
     }
 
+    @Getter
+    @AllArgsConstructor
+    public static class CreateResponse {
+        private Long orderId;
+    }
 }

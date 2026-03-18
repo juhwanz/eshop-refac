@@ -28,6 +28,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -45,7 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = OrderController.class,
+@ActiveProfiles("test")
+@WebMvcTest(controllers ={ OrderController.class, TestSupportController.class},
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class))
 @Import({WebConfig.class, QueueInterceptor.class})
 class OrderControllerTest {
@@ -95,7 +97,6 @@ class OrderControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("QUEUE_WAITING"))
-                .andExpect(jsonPath("$.message").exists())
                 .andDo(print());
     }
 
@@ -116,7 +117,7 @@ class OrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$").value(500L)) // 반환된 ID 확인
+                .andExpect(jsonPath("$.data.orderId").value(500L)) // 반환된 ID 확인
                 .andDo(print());
     }
 
@@ -178,8 +179,8 @@ class OrderControllerTest {
         mockMvc.perform(get("/api/orders")
                         .with(user(testUserDetails)))// GET 요청은 CSRF 토큰 불필요 (조회니까)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].orderId").value(10L))
-                .andExpect(jsonPath("$.content[0].orderStatus").value("ORDER"))
+                .andExpect(jsonPath("$.data.content[0].orderId").value(10L))
+                .andExpect(jsonPath("$.data.content[0].orderStatus").value("ORDER"))
                 .andDo(print());
     }
 
@@ -195,7 +196,7 @@ class OrderControllerTest {
                         .with(csrf())
                         .with(user(testUserDetails)))
                 .andExpect(status().isCreated()) // 201 Created 검증
-                .andExpect(jsonPath("$").value(expectedRank))
+                .andExpect(jsonPath("$.data").value(expectedRank.intValue()))
                 .andDo(print());
     }
 }

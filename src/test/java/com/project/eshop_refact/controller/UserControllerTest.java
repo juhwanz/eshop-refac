@@ -8,6 +8,7 @@ import com.project.eshop_refact.exception.ErrorCode;
 import com.project.eshop_refact.service.UserDetailsServiceImpl;
 import com.project.eshop_refact.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.eshop_refact.service.queue.WaitingQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,17 +37,14 @@ class UserControllerTest {
 
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
-
     @MockBean UserService userService;
-
-    // 요 2놈 떄문에 에러 자꾸 뜸.
     @MockBean
     JwtUtil jwtUtil;
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
 
     @MockBean
-    com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
+    WaitingQueueService waitingQueueService;
 
 
     @Test
@@ -65,7 +63,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
-                .andExpect(content().string("회원가입 성공")) // Controller 반환값 확인
+                .andExpect(jsonPath("$.message").value("회원가입 성공"))
                 .andDo(print());
     }
 
@@ -87,9 +85,9 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
-                // [수정] 헤더(header)가 아니라 바디(jsonPath)를 검증해야 합니다.
-                .andExpect(jsonPath("$.accessToken").value("access-token"))
-                .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
+                .andExpect(jsonPath("$.message").value("로그인 성공"))
+                .andExpect(jsonPath("$.data.accessToken").value("access-token"))
+                .andExpect(jsonPath("$.data.refreshToken").value("refresh-token"))
                 .andDo(print());
     }
 
@@ -156,12 +154,11 @@ class UserControllerTest {
     @WithMockUser
     void login_fail_password() throws Exception{
         //given
-        // given
         UserDto.LoginRequest request = new UserDto.LoginRequest();
         request.setEmail("test@email.com");
         request.setPassword("wrongPassword!!!");
 
-        // [핵심] 서비스의 로그인 로직이 비밀번호 불일치 예외를 던지도록 조작
+        // 서비스의 로그인 로직이 비밀번호 불일치 예외를 던지도록 조작
         given(userService.login(any())).willThrow(new BusinessException(ErrorCode.LOGIN_FAILED));
 
         // when & then

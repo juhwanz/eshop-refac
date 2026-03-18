@@ -1,6 +1,7 @@
 package com.project.eshop_refact.controller;
 
 import com.project.eshop_refact.config.UserDetailsImpl;
+import com.project.eshop_refact.dto.ApiResponse;
 import com.project.eshop_refact.dto.OrderDto;
 import com.project.eshop_refact.facade.RedissonLockStockFacade;
 import com.project.eshop_refact.service.OrderService;
@@ -24,15 +25,13 @@ public class OrderController {
 
     private final RedissonLockStockFacade redissonLockStockFacade;
     private final OrderService orderService;
-    private final WaitingQueueService waitingQueueService; // [Security] 운영 배포 시 제거 권장
 
     @PostMapping
-    public ResponseEntity<Long> createOrder(
+    public ResponseEntity<ApiResponse<OrderDto.CreateResponse>> createOrder(
             @RequestBody @Valid OrderDto.Request requestDto,
             @AuthenticationPrincipal UserDetailsImpl userDetails
     ){
         Long userId = userDetails.getUser().getId();
-
         // Facade를 통해 "분산 락 -> 트랜잭션 -> 재고 차감" 순차 실행
         Long orderId = redissonLockStockFacade.order(
                 userId,
@@ -40,25 +39,28 @@ public class OrderController {
                 requestDto.getCount()
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(orderId);
+        return ResponseEntity.status(201).body(ApiResponse.success("주문 성공", new OrderDto.CreateResponse(orderId)));
     }
 
 
     @GetMapping
-    public ResponseEntity<Page<OrderDto.Response>> getOrders(
+    public ResponseEntity<ApiResponse<Page<OrderDto.Response>>> getOrders(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.DESC)Pageable pageable
     ){
         Long userId = userDetails.getUser().getId();
         // 단순 조회는 락이 없으니 service 바로 호출.
         Page<OrderDto.Response> orders = orderService.getOrders(userId, pageable);
-        return ResponseEntity.ok(orders);
+        return ResponseEntity.ok(ApiResponse.success("주문 목록 조회 성공", orders));
     }
 
-    //대기열 등록 API (테스트용)
-    @PostMapping("/queue")
-    public ResponseEntity<Long> registerQueue(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        Long rank = waitingQueueService.registerQueue(userDetails.getUser().getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(rank);
+    // 취소 로직
+    @PatchMapping("/{orderId}/cancel")
+    public ResponseEntity<ApiResponse<Void>> cancelOrder(
+            @PathVariable Long orderId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails
+    ){
+        orderService.cancelOrder(orderId);
+        return ResponseEntity.ok(ApiResponse.success("주문 취소 성공"));
     }
 }
