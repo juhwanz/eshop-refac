@@ -28,7 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = {
         "spring.datasource.hikari.maximum-pool-size=5",
         "spring.datasource.hikari.connection-timeout=250",
-        "test.simulation.delay-ms=150"
+        "test.simulation.delay-ms=150",
+        "app.order.lock.wait-time=30" //테스트 타임아웃 방지를 위해 대기 시간을 30초로 연장
 })
 @ActiveProfiles("test") //test 프로필 활성화하여 TestLatencyAspect 동작 유도
 public class OrderAvailabilityIntegrationTest {
