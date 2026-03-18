@@ -51,4 +51,11 @@ public class ProductDto {
             this.stockQuantity = product.getStockQuantity();
         }
     }
+
+    @Getter
+    @NoArgsConstructor
+    public static class PriceUpdateRequest{
+        @Min(value = 100, message = "가격은 최소 100원 이상이어야 합니다.")
+        private int newPrice;
+    }
 }

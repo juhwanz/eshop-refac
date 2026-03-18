@@ -7,6 +7,7 @@ import com.project.eshop_refact.dto.ProductDto;
 import com.project.eshop_refact.service.ProductService;
 import com.project.eshop_refact.service.UserDetailsServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.eshop_refact.service.queue.WaitingQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-// 대기열 인터셉터 문제 발생 X -> WebConfig에서 /api/orders만 적용했기에.
+
 // SecurityConfig는 배제.
 @WebMvcTest(controllers = ProductController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class))
@@ -55,7 +56,7 @@ class ProductControllerTest {
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
     @MockBean
-    com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
+    WaitingQueueService waitingQueueService;
 
     @Test
     @DisplayName("상품 등록 API - 201 Created 반환 검증")
@@ -83,6 +84,7 @@ class ProductControllerTest {
                         // 직렬화 - 바디
 
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("상품등록 성공"))
                 .andExpect(jsonPath("$.data").value(1L))
                 .andDo(print());
@@ -104,8 +106,8 @@ class ProductControllerTest {
         //When & Then
         mockMvc.perform(get("/api/products/{productId}",productId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("MAC"))
-                .andExpect(jsonPath("$.price").value(250000))
+                .andExpect(jsonPath("$.data.name").value("MAC"))
+                .andExpect(jsonPath("$.data.price").value(250000))
                 .andDo(print());
     }
     @Test
@@ -132,8 +134,8 @@ class ProductControllerTest {
                         .param("size", "10"))
                 .andExpect(status().isOk()) // 200??
                 // & - JSON의 최상위 루트
-                .andExpect(jsonPath("$.content[0].name").value("MacBook"))
-                .andExpect(jsonPath("$.content[0].price").value(2000000))
+                .andExpect(jsonPath("$.data.content[0].name").value("MacBook"))
+                .andExpect(jsonPath("$.data.content[0].price").value(2000000))
                 .andDo(print());
     }
 
@@ -157,8 +159,8 @@ class ProductControllerTest {
                     .param("name", "Phone")
                     .param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].name").value("Phone"))
-                .andExpect(jsonPath("$.content[0].price").value(20000))
+                .andExpect(jsonPath("$.data.content[0].name").value("Phone"))
+                .andExpect(jsonPath("$.data.content[0].price").value(20000))
                 .andDo(print());
     }
     @Test
@@ -174,11 +176,14 @@ class ProductControllerTest {
 
         given(productService.updateProductPrice(productId, newPrice)).willReturn(responseDto);
 
+        ProductDto.PriceUpdateRequest request = new ProductDto.PriceUpdateRequest();
+        ReflectionTestUtils.setField(request, "newPrice", newPrice);
         // when & then
         // PATCH 요청, 데이터 변경이 일어나므로 POST와 마찬가지로 CSRF 토큰 필요
         mockMvc.perform(patch("/api/products/{productId}/price", productId)
                         .with(csrf())
-                        .param("newPrice", String.valueOf(newPrice))) // @RequestParam 매핑
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 // ApiResponse 객체 구조(message, data)에 맞춰 jsonPath 검증
                 .andExpect(jsonPath("$.message").value("가격수정 성공"))
