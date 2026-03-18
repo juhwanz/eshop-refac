@@ -1,12 +1,14 @@
 package com.project.eshop_refact.config;
 
 import com.project.eshop_refact.domain.UserRoleEnum;
+import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Ref;
 
+import static org.assertj.core.api.Assertions.as;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // Unit Test : 스프링 컨텍스트 없이 빠르게 시도 가능.
@@ -17,11 +19,12 @@ class JwtUtilTest {
     private JwtUtil jwtUtil;
 
     private static final String TEST_SECRET_KEY = "c2lsdmVybmluZS10ZWNoLXNwcmluZy1ib290LWp3dC10dXRvcmlhbC1zZWNyZXQtMQ=="; // Base64 Encoded
-    private static final long ONE_HOUR_ExpirationTime = 3600000L;
+    private static final long ONE_HOUR_EXPIRATION_TIME = 3600000L;
+    private static final long TWO_WEEKS_EXPIRATION_TIME = 1209600000L; // 14일
 
     @BeforeEach
     void setUp() {
-        jwtUtil = new JwtUtil(ONE_HOUR_ExpirationTime, TEST_SECRET_KEY); // expirationTime, 키
+        jwtUtil = new JwtUtil(ONE_HOUR_EXPIRATION_TIME, TEST_SECRET_KEY, TWO_WEEKS_EXPIRATION_TIME);
         jwtUtil.init(); //@PostConstruct 수동 호출. // 키 암호화.
     }
 
@@ -34,20 +37,22 @@ class JwtUtilTest {
 
         //When
         String token = jwtUtil.createToken(email, role);
+        Claims claims = jwtUtil.getClaimsIfValid(token);
 
         //Then
         assertThat(token).isNotBlank();
         // 토큰 유효성 검증.
-        assertThat(jwtUtil.validateToken(token)).isTrue();
-        // 토큰 email.
-        assertThat(jwtUtil.getUsernameFromToken(token)).isEqualTo(email);
+        assertThat(claims).isNotNull();
+        assertThat(claims.getSubject()).isEqualTo(email);
+        assertThat(claims.get("type")).isEqualTo("ACCESS");
+        assertThat(claims.get("auth")).isEqualTo("USER");
     }
 
     @Test
     @DisplayName("실패 : 만료된 토큰")
     void validateExpiredToken() {
         // Given : 유효시간 0 -> 즉시 만료
-        JwtUtil expiredJwtUtil = new JwtUtil(0L, TEST_SECRET_KEY);
+        JwtUtil expiredJwtUtil = new JwtUtil(0L, TEST_SECRET_KEY, 0L);
         expiredJwtUtil.init();
 
         String email = "expired@test.com";
@@ -55,30 +60,28 @@ class JwtUtilTest {
         String expiredToken = expiredJwtUtil.createToken(email, role);
 
         //when
-        //Then : false여야 함.
-        assertThat(expiredJwtUtil.validateToken(expiredToken)).isFalse();
+        Claims claims = expiredJwtUtil.getClaimsIfValid(expiredToken);
+
+        //Then : 만료 => null 반환
+        assertThat(claims).isNull();
     }
 
     @Test
     @DisplayName("실패 : 위조된 토큰 검증")
     void validateTamperedToken(){
-        // Given : 정상 토큰
-        String token = jwtUtil.createToken("test@test.com", UserRoleEnum.USER);
+        // Given : 해커 객체
+        String hackSecretBase64 = "aGFja2VyLWtleS1tdXN0LWJlLXNlY3JldC1hbmQtbG9uZy1lbm91Z2gtMjU2Yml0cw==";
 
-        // 해커
-        String Hack_secretKeyString = "hacker-secret-key-must-be-long-enough-for-hmac-sha-algorithms-minimum-bytes";
-        String hackSecretBase64 = java.util.Base64.getEncoder().encodeToString(Hack_secretKeyString.getBytes());
-
-        JwtUtil hackJwtUtil = new JwtUtil(ONE_HOUR_ExpirationTime, hackSecretBase64);
+        JwtUtil hackJwtUtil = new JwtUtil(ONE_HOUR_EXPIRATION_TIME, hackSecretBase64, TWO_WEEKS_EXPIRATION_TIME);
         hackJwtUtil.init();
 
         String hackerToken = hackJwtUtil.createToken("hacker@test.com", UserRoleEnum.USER);
 
-        // When: 해커의 키로 만든 토큰이거나, 내 키로 서명 안 된 토큰 검증
-        // (여기서는 상황을 반대로, 내 서버(jwtUtil)에 해커가 만든 토큰을 던졌을 때를 가정)
-        //서명이 다르므로 실패해야 함
-        // Then
-        assertThat(jwtUtil.validateToken(hackerToken)).isFalse();
+        // When: 정상 서버(jwtUtil)에서 해커의 토큰 검증
+        Claims claims = jwtUtil.getClaimsIfValid(hackerToken);
+
+        // Then: 서명이 다르므로 null 반환
+        assertThat(claims).isNull();
     }
 
     @Test
@@ -87,18 +90,28 @@ class JwtUtilTest {
         // Given
         String garbageToken = "Bearer invalid.token.structure"; // 중간 띄어쓰기 밑 Bearer 그대로 넣음 -> 형식 에러 [MalformedJwtException)
 
-        //Then
-        assertThat(jwtUtil.validateToken(garbageToken)).isFalse();
+        //When
+        Claims claims = jwtUtil.getClaimsIfValid(garbageToken);
+
+        // Then: 파싱 에러로 null 반환
+        assertThat(claims).isNull();
     }
 
     @Test
     @DisplayName("성공 : Refresh Token 생성 및 검증")
     void createValidRefreshToken(){
         //Given
-        String RefreshToken = jwtUtil.createRefreshToken("test@test.com");
+        String email = "test@test.com";
 
-        assertThat(RefreshToken).isNotBlank();
-        assertThat(jwtUtil.validateToken(RefreshToken)).isTrue();
-        assertThat(jwtUtil.getUsernameFromToken(RefreshToken)).isEqualTo("test@test.com");
+        //When
+        String refreshToken = jwtUtil.createRefreshToken("test@test.com");
+        Claims claims = jwtUtil.getClaimsIfValid(refreshToken);
+
+        // Then
+        assertThat(refreshToken).isNotBlank();
+        assertThat(claims).isNotNull();
+        assertThat(claims.getSubject()).isEqualTo(email);
+        assertThat(claims.get("type")).isEqualTo("REFRESH"); // 타입 확인
+        assertThat(claims.get("auth")).isNull(); // Refresh Token은 권한 정보를 담지 않음
     }
 }
