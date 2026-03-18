@@ -28,7 +28,7 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<OrderDto.CreateResponse>> createOrder(
-            @RequestBody @Valid OrderDto.Request requestDto,
+            @RequestBody @Valid OrderDto.CreateRequest requestDto,
             @AuthenticationPrincipal UserDetailsImpl userDetails
     ){
         Long userId = userDetails.getUser().getId();

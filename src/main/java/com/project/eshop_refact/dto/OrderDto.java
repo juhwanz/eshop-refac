@@ -19,7 +19,7 @@ public class OrderDto {
     @Getter
     @Setter
     @NoArgsConstructor
-    public static class Request {
+    public static class CreateRequest {
 
         @NotNull(message = "상품 ID는 필수입니다.")
         private Long productId;
