@@ -83,7 +83,7 @@ class OrderControllerTest {
     @DisplayName("[실패] 대기열 토큰 없이 주문 요청 시 429 Too Many Requests 반환")
     void createOrder_Fail_When_Queue_Token_Invalid() throws Exception {
         // given
-        OrderDto.Request request = new OrderDto.Request();
+        OrderDto.CreateRequest request = new OrderDto.CreateRequest();
         request.setProductId(100L);
         request.setCount(1);
 
@@ -104,7 +104,7 @@ class OrderControllerTest {
     @DisplayName("주문 생성 API 성공 테스트")
     void createOrder() throws Exception {
         // given
-        OrderDto.Request request = new OrderDto.Request();
+        OrderDto.CreateRequest request = new OrderDto.CreateRequest();
         request.setProductId(100L);
         request.setCount(2);
 
@@ -125,7 +125,7 @@ class OrderControllerTest {
     @DisplayName(" 실패 : 주문 생성 : 수량이 0 이하일 경우 400 Bad Reques")
     void createOrder_fail() throws Exception{
         //given
-        OrderDto.Request request = new OrderDto.Request();
+        OrderDto.CreateRequest request = new OrderDto.CreateRequest();
         request.setProductId(100L);
         request.setCount(0);
 
@@ -143,7 +143,7 @@ class OrderControllerTest {
     @DisplayName("[실패] 주문 생성: 재고 부족 시 비즈니스 예외 발생")
     void createOrder_Fail_Out_Of_Stock() throws Exception {
         // given
-        OrderDto.Request request = new OrderDto.Request();
+        OrderDto.CreateRequest request = new OrderDto.CreateRequest();
         request.setProductId(100L);
         request.setCount(10); // 요청 수량
 

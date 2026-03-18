@@ -18,4 +18,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> success(String message, T data) {
         return new ApiResponse<>(message, data);
     }
+
+    // Only Data
+    public static <T> ApiResponse<T> success(T data) { return new ApiResponse<>("요청이 성공적으로 처리되었습니다.", data); }
 }

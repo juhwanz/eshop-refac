@@ -13,14 +13,14 @@ public class ProductDto {
     public static class RegisterRequest {
 
         // Validation: @Valid 어노테이션을 통한 입력값 검증 및 Fail-Fast 전략 구현
-        @NotBlank(message = "상품명은 필수")
+        @NotBlank(message = "상품명은 필수입니다.")
         private String name;
 
         // Domain Rule: 비즈니스 최소 가격 정책 반영
         @Min(value = 100, message = "가격은 최소 100원 이상")
         private int price;
 
-        @Min(value = 0, message = "재고는 0개 이상이어야 함.")
+        @Min(value = 1, message = "재고는 1개 이상이어야 합니다.")
         private int stockQuantity;
 
     }
@@ -31,6 +31,19 @@ public class ProductDto {
         private String name;
         private Integer minPrice;
         private Integer maxPrice;
+
+        // 빈 문자열은 null로 처리하여 검색 조건에서 제외
+        public void setName(String name) {
+            this.name = (name != null && name.trim().isEmpty()) ? null : name;
+        }
+
+        //  가격 범위 유효성 검증
+        public boolean isValidPriceRange() {
+            if (minPrice != null && maxPrice != null) {
+                return minPrice <= maxPrice;
+            }
+            return true;
+        }
     }
 
     @Getter
