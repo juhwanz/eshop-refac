@@ -1,6 +1,7 @@
 package com.project.eshop_refact.integration;
 
 import com.project.eshop_refact.domain.*;
+import com.project.eshop_refact.dto.OrderDto;
 import com.project.eshop_refact.repository.OrderRepository;
 import com.project.eshop_refact.repository.ProductRepository;
 import com.project.eshop_refact.repository.UserRepository;
@@ -12,34 +13,33 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 @SpringBootTest
 @Transactional
 public class OrderQueryIntegrationTest {
 
-    @Autowired
-    OrderRepository orderRepository;
-    @Autowired
-    OrderService orderService;
-    @Autowired
-    UserRepository userRepository;
-    @Autowired
-    ProductRepository productRepository;
-    @Autowired
-    EntityManager em;
+    @Autowired OrderRepository orderRepository;
+    @Autowired OrderService orderService;
+    @Autowired UserRepository userRepository;
+    @Autowired ProductRepository productRepository;
+    @Autowired EntityManager em;
+
+    private Long testUserId; // 조회용 ID를 저장할 클래스 변수
 
     @BeforeEach
     void setup(){
-        // 데이터 초기화
-        // 데이터 초기화
         User user = userRepository.save(new User("nplus1@test.com", "1234", "tester", UserRoleEnum.USER));
+        testUserId = user.getId(); // 저장된 유저의 ID 기록
+
         Product product = productRepository.save(new Product("Test Item", 1000, 100));
 
-        // 주문 10개 생성 (각 주문에 아이템 1개씩)
         List<Order> orders = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             OrderItem item = OrderItem.createOrderItem(product, 1);
@@ -52,16 +52,18 @@ public class OrderQueryIntegrationTest {
     }
 
     @Test
-    @DisplayName("N+1 검증: 주문 10개 조회 시 쿼리가 몇 번 나가는가?")
+    @DisplayName("N+1 검증 및 데이터 정합성 확인")
     void checkNPlusOne() {
-        System.out.println("========== [조회 시작] ==========");
+        System.out.println("\n========== [조회 시작] ==========");
 
-        // When: 주문 목록 조회 (PageSize = 10)
-        orderService.getOrders(
-                userRepository.findByEmail("nplus1@test.com").get().getId(),
-                PageRequest.of(0, 10)
-        );
+        // When: 저장해둔 ID를 바로 사용해서 조회
+        Page<OrderDto.Response> result =
+                orderService.getOrders(testUserId, PageRequest.of(0, 10));
 
-        System.out.println("========== [조회 종료] ==========");
+        System.out.println("========== [조회 종료] ==========\n");
+
+        // Then: 10개의 주문이 모두 정상적으로 조회되었는지 검증
+        assertThat(result.getContent()).hasSize(10);
+        assertThat(result.getContent().get(0).getOrderId()).isNotNull();
     }
 }

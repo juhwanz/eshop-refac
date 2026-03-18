@@ -4,6 +4,7 @@ import com.project.eshop_refact.domain.Product;
 import com.project.eshop_refact.dto.ProductDto;
 import com.project.eshop_refact.repository.ProductRepository;
 import com.project.eshop_refact.service.ProductService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,14 @@ public class ProductCacheIntegrationTest {
     @Autowired private ProductService productService;
     @Autowired private ProductRepository productRepository;
     @Autowired private CacheManager cacheManager; // RedisCacheManager 주입
+
+    // 매 테스트 직전에 'products'캐시 공간 초기화 <- 전체 테스트 코드 한 번에 돌릴경우 -> 다른 테스트에서 만들어둔 캐시로 인해 실패 방지
+    // Redis -> 외부 상태 공유 때문.
+    @BeforeEach
+    void clearCache(){
+        Cache cache = cacheManager.getCache("products");
+        if(cache != null) cache.clear();
+    }
 
     @Test
     @DisplayName("캐시 정합성 검증: 조회(Miss) -> 캐시생성(Put) -> 수정(Evict) -> 재조회(New Put)")

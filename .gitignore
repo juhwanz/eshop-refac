@@ -5,6 +5,10 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+### etc
+.DS_Store
+__MAXCOSX/
+
 ### STS ###
 .apt_generated
 .classpath

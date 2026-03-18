@@ -1,12 +1,9 @@
-# ==========================================
-# 1. Common Settings (공통 설정)
-# ==========================================
+
+# 1. Common Settings
+
 spring:
   application:
     name: eshop-refact
-  profiles:
-    active: local # 기본적으로 로컬 프로필 활성화
-    include: secret
 
   datasource:
     hikari:   # HikariCP [DB 커넥션 풀 세팅] : 기본값 10개.
@@ -16,7 +13,7 @@ spring:
       max-lifetime: 1800000   # 커넥션 최대 생존 시간 ( DB 생존시간 보다 짧게)
     url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: root
-    password: ${DB_PASSWORD} # IntelliJ 환경변수 or 시스템 변수 사용
+    password: ${DB_PASSWORD} # 환경변수 사용
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   data:
@@ -25,7 +22,7 @@ spring:
       port: 6379
 
   jpa:
-    # OSIV: 트랜잭션 범위 밖에서 DB 커넥션 점유 방지 (성능 최적화 필수 설정)
+    # OSIV: 트랜잭션 범위 밖에서 DB 커넥션 점유 방지
     open-in-view: false
     properties:
       hibernate:
@@ -34,15 +31,16 @@ spring:
         default_batch_fetch_size: 100
 
 jwt:
-  secret: ${JWT_SECRET_KEY}
+  secret: ${JWT_SECRET_KEY} # 환경변수 사용
   expiration-time: 86400000 # 24시간
 
 management:
   endpoints:
     web:
       exposure:
-        include: health, info, prometheus # 헬스 체크 및 모니터링 엔드포인트 노출.
-        # /actuator/health로 답해 줌.
+        include: health    # 헬스 체크
+        # info, prometheus #  모니터링 엔드포인트 노출.
+        # /actuator/health로 답해 줌. -> 노출 최소.
 
 app:
   order:
@@ -50,9 +48,9 @@ app:
       wait-time: 10 # 락 흭득 대기 시간
       lease-time: 3 # 락 점유 시간.
 ---
-# ==========================================
+
 # 2. Local Profile (개발 환경)
-# ==========================================
+
 spring:
   config:
     activate:
@@ -72,9 +70,9 @@ logging:
     com.project.eshop_refact: debug # 내 프로젝트 로그 레벨
 
 ---
-# ==========================================
+
 # 3. Prod Profile (운영 환경 시뮬레이션)
-# ==========================================
+
 spring:
   config:
     activate:
