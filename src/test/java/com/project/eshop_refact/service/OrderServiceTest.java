@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verify;
 public class OrderServiceTest {
 
     @InjectMocks
-    private OrderService orderService; // 테스트 대상
+    private OrderService orderService;
 
     @Mock
     private OrderRepository orderRepository;
@@ -132,6 +132,7 @@ public class OrderServiceTest {
         // [1] Given: 최초 재고 5개인 상품 준비
         Product product = new Product("item", 10000, 5);
         User user = new User("test", "pw", "user", UserRoleEnum.USER);
+        ReflectionTestUtils.setField(user, "id", 1L);
 
         // [2] 주문 생성
         // 현재 OrderItem 생성 시 재고를 안 줄이므로, 테스트를 위해 수동으로 줄여줍니다.
@@ -146,7 +147,7 @@ public class OrderServiceTest {
         given(orderRepository.findById(10L)).willReturn(Optional.of(order));
 
         // [3] When: 주문 취소 실행 (내부에서 orderItem.getProduct().addStock(2) 호출됨)
-        orderService.cancelOrder(10L);
+        orderService.cancelOrder(10L, 1L);
 
         // [4] Then: 취소 후 재고가 다시 5인지 확인
         assertThat(product.getStockQuantity()).isEqualTo(5);
@@ -158,11 +159,34 @@ public class OrderServiceTest {
     void cancelOrder_fail_notFound() {
         // Given
         Long orderId = 999L;
+        Long userId = 1L;
         given(orderRepository.findById(orderId)).willReturn(Optional.empty());
 
         // When & Then
-        assertThatThrownBy(() -> orderService.cancelOrder(orderId))
+        assertThatThrownBy(() -> orderService.cancelOrder(orderId,userId))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.ORDER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("주문 취소 실패 : 권한 없는 유저 (타인의 주문 취소 시도)")
+    void cancelOrder_fail_forbidden() {
+        // Given
+        Long orderId = 10L;
+        Long ownerId = 1L;
+        Long requesterId = 2L; // 요청자는 타인
+
+        User owner = new User("owner@test.com", "pw", "owner", UserRoleEnum.USER);
+        ReflectionTestUtils.setField(owner, "id", ownerId);
+
+        Order order = new Order();
+        ReflectionTestUtils.setField(order, "user", owner); // 주문의 소유자는 ownerId (1L)
+
+        given(orderRepository.findById(orderId)).willReturn(Optional.of(order));
+
+        // When & Then: 타인(2L)이 취소 요청 시 예외 발생 확인
+        assertThatThrownBy(() -> orderService.cancelOrder(orderId, requesterId))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN_ACCESS);
     }
 }

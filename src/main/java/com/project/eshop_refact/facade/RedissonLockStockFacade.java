@@ -73,7 +73,7 @@ public class RedissonLockStockFacade {
     /**
      * 주문 취소 시 재고 복구 동시성 제어
      */
-    public void cancelOrder(Long orderId, Long productId) {
+    public void cancelOrder(Long orderId, Long productId, Long userId) {
         RLock lock = redissonClient.getLock("product:stock:" + productId);
 
         try {
@@ -84,7 +84,7 @@ public class RedissonLockStockFacade {
                 throw new BusinessException(ErrorCode.LOCK_ACQUISITION_FAILED);
             }
 
-            orderService.cancelOrder(orderId);
+            orderService.cancelOrder(orderId, userId);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
