@@ -46,6 +46,23 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(ErrorResponse.of(errorCode), errorCode.getHttpStatus());
     }
 
+    // 4. 잘못된 인자 예외 처리 (도메인 계층 등)
+    @ExceptionHandler(IllegalArgumentException.class)
+    protected ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException e) {
+        log.warn("Illegal Argument Exception : {}", e.getMessage());
+        ErrorCode errorCode = ErrorCode.INVALID_INPUT_VALUE;
+        // 도메인에서 던진 구체적인 메시지를 그대로 전달
+        return new ResponseEntity<>(ErrorResponse.of(errorCode, e.getMessage()), errorCode.getHttpStatus());
+    }
+
+    // 5. 잘못된 상태 예외 처리 (파사드 계층 등)
+    @ExceptionHandler(IllegalStateException.class)
+    protected ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException e) {
+        log.error("Illegal State Exception : {}", e.getMessage());
+        ErrorCode errorCode = ErrorCode.INTERNAL_SERVER_ERROR;
+        return new ResponseEntity<>(ErrorResponse.of(errorCode, e.getMessage()), errorCode.getHttpStatus());
+    }
+
     // 4. 나머지 모든 예외 처리 (최상위 Exception)
     @ExceptionHandler(Exception.class)
     protected ResponseEntity<ErrorResponse> handleException(Exception e) {

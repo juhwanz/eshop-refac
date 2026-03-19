@@ -63,10 +63,13 @@ public class OrderService {
     }
 
     @Transactional
-    public void cancelOrder(Long orderId) {
+    public void cancelOrder(Long orderId, Long userId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
+        if(!order.getUser().getId().equals(userId)){
+            throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
+        }
         order.cancel(); // 도메인 로직 호출 (재고 복구)
     }
 }

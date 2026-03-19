@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "users")  // DB 예약어 충돌 방지
 public class User {
 
+
     @Id     // PK
     @GeneratedValue(strategy = GenerationType.IDENTITY) // MySQL의 Auto Increment 기능 위임해 사용.
     private Long id;

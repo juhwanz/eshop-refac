@@ -37,10 +37,6 @@ public class ProductService {
         Product savedProduct = productRepository.save(product);
 
         return savedProduct.getId();
-
-        // -> 최적화
-        //productRepository.save(product);
-        //return productRepository.save(product).getId(); // 이것도 가능
     }
 
     // Caching Strategy: Look-aside Pattern 적용 (Read-Through)
