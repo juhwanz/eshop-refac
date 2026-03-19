@@ -38,7 +38,6 @@ public class OrderController {
                 requestDto.getProductId(),
                 requestDto.getCount()
         );
-
         return ResponseEntity.status(201).body(ApiResponse.success("주문 성공", new OrderDto.CreateResponse(orderId)));
     }
 
