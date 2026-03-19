@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 
 // Strategy Pattern: 런타임 시점에 상품 특성(일반 vs 이벤트)에 따라 재고 차감 알고리즘 교체
 // Default Strategy: 동시성 충돌 빈도가 낮은 일반 상품(99%)을 위한 기본 구현체
-@Component
 @Primary
+@Component
 @RequiredArgsConstructor
 public class GeneralStockStrategy implements StockStrategy{
 

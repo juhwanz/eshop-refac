@@ -21,7 +21,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "spring.jpa.properties.hibernate.default_batch_fetch_size=100"
+})
 @Transactional
 public class OrderQueryIntegrationTest {
 
@@ -65,5 +67,24 @@ public class OrderQueryIntegrationTest {
         // Then: 10개의 주문이 모두 정상적으로 조회되었는지 검증
         assertThat(result.getContent()).hasSize(10);
         assertThat(result.getContent().get(0).getOrderId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("🚨 [위험] Fetch Join과 페이징 혼용 시 메모리 페이징 발생 증명")
+    void checkMemoryPagingWarning() {
+        System.out.println("\n========== [위험한 조회 시작: Fetch Join + Paging] ==========");
+
+        // Given: setup()에서 생성한 유저 정보 가져오기
+        User user = userRepository.findById(testUserId).orElseThrow();
+
+        // When: [레거시] Fetch Join이 걸려있는 페이징 메서드 호출
+        // PageSize를 10으로 주었지만, Hibernate는 다르게 동작합니다.
+        org.springframework.data.domain.Page<Order> result =
+                orderRepository.findAllByUserWithFetchJoinAndPaging(user, PageRequest.of(0, 10));
+
+        System.out.println("========== [위험한 조회 종료] ==========\n");
+
+        // Then: 결과 자체는 10개가 나오지만, 콘솔 로그에 치명적인 경고가 남아야 함
+        assertThat(result.getContent()).hasSize(10);
     }
 }

@@ -13,6 +13,8 @@ import com.project.eshop_refact.service.strategy.PessimisticLockStrategy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -21,6 +23,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,6 +35,7 @@ import static org.mockito.BDDMockito.given;
         "spring.datasource.hikari.maximum-pool-size=50",
         "spring.datasource.hikari.connection-timeout=5000",
         "spring.jpa.properties.hibernate.show_sql=false",
+        "app.order.lcok.wait-time=120",
         "logging.level.root=error"
 })
 public class OrderConcurrencyIntegrationTest {
@@ -44,7 +48,7 @@ public class OrderConcurrencyIntegrationTest {
 
     // 전략 구현체 직접 주입 (프록시가 씌워진 안전한 빈 사용)
     @Autowired private PessimisticLockStrategy pessimisticLockStrategy;
-
+    @Autowired private RedissonClient redissonClient;
     // 락 로직 테스트에 집중하기 위해 대기열 서비스는 Mocking (통과 처리)
     @MockBean private WaitingQueueService waitingQueueService;
 
@@ -56,7 +60,7 @@ public class OrderConcurrencyIntegrationTest {
     }
 
     @Test
-    @DisplayName("[검증] 40개 재고에 45명이 동시 주문 -> 정확히 40개 성공, 5개 실패")
+    @DisplayName("[정합성 검증] 40개 재고 45명 동시 주문 -> 40개 성공, 5개 실패.")
     void verifyConcurrencyLimit() throws InterruptedException {
         // Given
         int stockQuantity = 40;
@@ -98,7 +102,6 @@ public class OrderConcurrencyIntegrationTest {
         }
 
         latch.await();
-
         // Then
         Product updatedProduct = productRepository.findById(productId).orElseThrow();
 
@@ -107,38 +110,71 @@ public class OrderConcurrencyIntegrationTest {
         System.out.println("실패: " + failCount.get());
         System.out.println("남은 재고: " + updatedProduct.getStockQuantity());
 
-        // AssertJ 형식으로 통일
-        assertThat(updatedProduct.getStockQuantity()).isEqualTo(0);
-        assertThat(successCount.get()).isEqualTo(40);
-        assertThat(failCount.get()).isEqualTo(5);
+        assertThat(successCount.get()).isEqualTo(40);   // 성공
+        assertThat(failCount.get()).isEqualTo(5);       //실패
+        assertThat(updatedProduct.getStockQuantity()).isEqualTo(0); // 남은 갯수
     }
 
     @Test
-    @DisplayName("Deep Dive: DB 비관적 락 vs Redis 분산 락 성능 비교")
-    void comparePerformance() throws InterruptedException {
-        // 1. DB 비관적 락 측정 (수동 객체 생성을 제거하고, 안전한 빈(Bean) 전략을 직접 호출)
+    @DisplayName("[순수 락 성능 비교] DB Pessimistic Vs Redis (1:1)")
+    void comparePureLockPerformance() throws InterruptedException {
         tearDown();
         long dbLockTime = testConcurrency(
                 "DB 비관적 락",
                 (userId, productId) -> pessimisticLockStrategy.decrease(productId, 1)
         );
 
-        // 2. Redis 분산 락 측정
         tearDown();
         long redisLockTime = testConcurrency(
                 "Redis 분산 락",
+                (userId, productId) -> {
+                    RLock lock = redissonClient.getLock("test:perf:pure:" + productId);
+                    try{
+                        boolean available = lock.tryLock(30, -1, TimeUnit.SECONDS);
+                        if(available){
+                            pessimisticLockStrategy.decrease(productId,1);
+                        }
+                    } catch(InterruptedException e){
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        if(lock.isHeldByCurrentThread()){
+                            lock.unlock();
+                        }
+                    }
+                }
+        );
+
+        System.out.println("\n [성능 비교 결과 리포트]");
+        System.out.println(" - DB 비관적 락 소요 시간: " + dbLockTime + "ms");
+        System.out.println(" - Redis 분산 락 소요 시간: " + redisLockTime + "ms");
+        System.out.println(" - 결과: " + calculateDiff(dbLockTime, redisLockTime));
+    }
+
+    @Test
+    @DisplayName("[아키텍쳐 성능 비교] DB 비관적 락 Vs Redis 분산 락")
+    void compareArchitecturePerformance() throws InterruptedException{
+        tearDown();
+
+        long dbLockTime = testConcurrency(
+                "DB Pessimistic Lock",
+                (userId, productId) -> pessimisticLockStrategy.decrease(productId, 1)
+        );
+
+        tearDown();
+
+        long redisLockTime = testConcurrency(
+                "Redis Lock",
+                // Facade를 통과하며 주문, 아이템 생성 등 전체 풀(Full) 로직 수행
                 (userId, productId) -> redissonLockStockFacade.order(userId, productId, 1)
         );
 
-        // 리포트 출력
-        System.out.println("\n=============================================");
-        System.out.println(" [성능 비교 결과 리포트]");
-        System.out.println("1. DB 비관적 락 소요 시간: " + dbLockTime + "ms");
-        System.out.println("2. Redis 분산 락 소요 시간: " + redisLockTime + "ms");
-        System.out.println(" 성능 지표: " + calculateDiff(dbLockTime, redisLockTime));
+        System.out.println("\n [ 아키텍처 성능 비교 (전체 주문 로직)]");
+        System.out.println(" - DB 락 (단순 차감): " + dbLockTime + "ms");
+        System.out.println(" - Redis 락 (전체 주문): " + redisLockTime + "ms");
+        System.out.println(" - 결과: " + calculateDiff(dbLockTime, redisLockTime) + " (트랜잭션 범위 확장에 따른 Trade-off)");
         System.out.println("=============================================\n");
-    }
 
+    }
     // 중복 코드를 제거한 테스트 실행기
     private long testConcurrency(String testName, OrderTask task) throws InterruptedException {
         // Given
