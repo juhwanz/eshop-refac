@@ -7,7 +7,7 @@ build/
 
 ### etc
 .DS_Store
-__MAXCOSX/
+__MACOSX/
 
 ### STS ###
 .apt_generated
@@ -40,19 +40,9 @@ out/
 ### VS Code ###
 .vscode/
 
-#
-application-secret.yml
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-
-### Gradle ###
-.gradle
-build/
-
 ### Security ###
 src/main/resources/application-secret.yaml
 application-secret.yaml
+.env
+
+tokens.csb
