@@ -38,19 +38,19 @@ public class RedissonLockStockFacade {
     public Long order(Long userId, Long productId, int count) {
         // Lock Key: 상품 단위로 락을 걸어 동시성 제어
         RLock lock = redissonClient.getLock("product:stock:" + productId);
+        Boolean lockAcquired = false;
 
         try {
             // 락 획득 시도 (최대 10초 대기, 락 획득 후 1초 지나면 자동 해제)
-            boolean available = lock.tryLock(waitTIme, leaseTime, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(waitTIme, leaseTime, TimeUnit.SECONDS);
 
-            if (!available) {
+            if (!lockAcquired) {
                 log.warn("Redisson Lock 획득 실패 - ProductId: {}", productId);
-                // removeUser 미호출 -> Active 상태 유지. => 이 메시지 보고, 재요청 시 바로 진입 가능.
+                //락 획득 실패 시 removeUser를 호출하지 않아 Active 상태 유지 -> 클라이언트가 대기열 맨 뒤로 밀리지 않고 즉시 재요청 가능
                 throw new BusinessException(ErrorCode.LOCK_ACQUISITION_FAILED);
             }
 
             // 락 획득 성공 시 비즈니스 로직 수행
-            // 트랜잭션은 이 메서드(orderService.order) 내부에서 시작되고 끝납니다.
             return orderService.order(userId, productId, count);
 
         } catch (InterruptedException e) {
@@ -58,14 +58,17 @@ public class RedissonLockStockFacade {
             throw new IllegalStateException("서버 에러가 발생했습니다.");
         } finally {
             // 3. 락 해제
-            // 락 해제 시도와 관계 없이 대기열 퇴장은 별도 보장
             try{
-                if(lock.isHeldByCurrentThread()){
+                // 락 흭득 했고, 현제 스레드가 점유 중일 때만 해제
+                if(lockAcquired && lock.isHeldByCurrentThread()){
                     lock.unlock();
                 }
             }finally {
-                // 해제 중 에러나도 대기열에서 반드시 제거
-                waitingQueueService.removeUser(userId);
+                // 락을 획득했던 유저(주문 성공 또는 재고 부족 등 비즈니스 예외)만 대기열에서 제거
+                // 락 획득에 실패한 유저는 대기열을 유지하여 재시도 기회 제공
+                if (lockAcquired) {
+                    waitingQueueService.removeUser(userId);
+                }
             }
         }
     }
@@ -78,11 +81,12 @@ public class RedissonLockStockFacade {
         Long productId = orderService.getProductIdByOrderId(orderId);
 
         RLock lock = redissonClient.getLock("product:stock:" + productId);
+        boolean lockAcquired = false;
 
         try {
-            boolean available = lock.tryLock(waitTIme, leaseTime, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(waitTIme, leaseTime, TimeUnit.SECONDS);
 
-            if (!available) {
+            if (!lockAcquired) {
                 log.warn("Redisson Lock 획득 실패 (취소) - ProductId: {}", productId);
                 throw new BusinessException(ErrorCode.LOCK_ACQUISITION_FAILED);
             }
@@ -93,7 +97,7 @@ public class RedissonLockStockFacade {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("서버 에러가 발생했습니다.");
         } finally {
-            if(lock.isHeldByCurrentThread()){
+            if(lockAcquired && lock.isHeldByCurrentThread()){
                 lock.unlock();
             }
         }
