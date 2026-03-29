@@ -31,7 +31,8 @@
 
 ### 1. Redis 분산 락으로 주문 정합성을 제어
 주문 생성은 `OrderController -> QueueInterceptor -> RedissonLockStockFacade -> OrderService` 흐름으로 처리됩니다.  
-락 획득/해제는 파사드에서 담당하고, 실제 주문 트랜잭션은 서비스에서 짧게 수행하도록 분리했습니다.
+락 획득/해제는 파사드에서 담당하고, 실제 주문 트랜잭션은 서비스에서 짧게 수행하도록 분리했습니다. 특히 트래픽 폭주로 분산 락 흭득에 실패한 유저의 경우, 대기열에서
+쫓아내지 않고 Active 상태를 유지시켜 즉각적인 재요청이 가능하도록 UX를 고려해 설계했습니다.
 
 ### 2. 대기열을 ZSet와 활성 토큰으로 분리
 `WaitingQueueService`는 다음 두 키를 사용합니다.
@@ -104,8 +105,8 @@ sequenceDiagram
 ### 사용자
 - 회원가입
 - 로그인
-- Access Token / Refresh Token 발급
-- Refresh Token Redis 저장(`RT:{email}`, TTL 14일)
+- Access Token / Refresh Token 발급 및 RTR(Refresh Token Rotation) 방식 재발급
+- Refresh Token Redis 저장(`RT:{email}`, TTL 14일) 및 로그아웃 시 무효화 처리
 
 ### 상품
 - 상품 등록
@@ -116,30 +117,33 @@ sequenceDiagram
 - 상품 단건 조회 캐시
 
 ### 주문
-- 주문 생성
-- 내 주문 목록 조회
-- 주문 취소
+- 주문 생성 (Redis 분산 락 적용)
+- 내 주문 목록 조회 ( Batch Fetch Size 최적화)
+- 주문 취소 (주문 생성과 동일하게 Redis 분산 락을 통한 재고 복구 정합성 보장)
 
 ### 대기열
-- 대기열 등록 API 제공
+- 대기열 등록 API 제공 (PoC)
 - 스케줄러가 1초마다 최대 100명 진입 허용
 - 주문 POST 요청에서 대기열 통과 여부 검사
+- 다중 서버 환경에서 스케줄러 중복 실행을 방지하기 위해 **ShedLock** 적용
 
 ## API 요약
 
-| Method | Path | 설명 | 비고 |
-|---|---|---|---|
-| POST | `/api/users/signup` | 회원가입 | 공개 |
-| POST | `/api/users/login` | 로그인 | 공개 |
-| GET | `/api/products/{productId}` | 상품 단건 조회 | 공개 |
-| GET | `/api/products/search` | 상품 검색(Page) | 공개 |
-| GET | `/api/products/search/no-offset` | 상품 스크롤 검색(Slice) | 공개 |
-| POST | `/api/products` | 상품 등록 | `ADMIN` 권한 필요 |
-| PATCH | `/api/products/{productId}/price` | 상품 가격 수정 | `ADMIN` 권한 필요 |
-| POST | `/api/orders` | 주문 생성 | JWT 필요, 대기열 통과 필요 |
-| GET | `/api/orders` | 내 주문 목록 조회 | JWT 필요 |
-| PATCH | `/api/orders/{orderId}/cancel` | 주문 취소 | JWT 필요 |
-| POST | `/api/orders/queue` | 대기열 등록 | `local`/`dev`/`test` 프로필에서만 활성화, JWT 필요 |
+| Method | Path                              | 설명               | 비고                                     |
+|---|-----------------------------------|------------------|----------------------------------------|
+| POST | `/api/users/signup`               | 회원가입             | 공개                                     |
+| POST | `/api/users/login`                | 로그인              | 공개                                     |
+| POST | `/api/users/reissue`              | 토큰 재발급           | Access Token 만료 시 Refresh Token으로 요청   |
+| POST | `/api/users/logout`               | 로그아웃             | JWT 필요, Redis 내 Refresh Token 삭제                                |
+| GET | `/api/products/{productId}`       | 상품 단건 조회         | 공개                                     |
+| GET | `/api/products/search`            | 상품 검색(Page)      | 공개                                     |
+| GET | `/api/products/search/no-offset`  | 상품 스크롤 검색(Slice) | 공개                                     |
+| POST | `/api/products`                   | 상품 등록            | `ADMIN` 권한 필요                          |
+| PATCH | `/api/products/{productId}/price` | 상품 가격 수정         | `ADMIN` 권한 필요                          |
+| POST | `/api/orders`                     | 주문 생성            | JWT 필요, 대기열 통과 필요                      |
+| GET | `/api/orders`                     | 내 주문 목록 조회       | JWT 필요                                 |
+| PATCH | `/api/orders/{orderId}/cancel`    | 주문 취소            | JWT 필요                                 |
+| POST | `/api/orders/queue`               | 대기열 등록(PoC)      | JWT 필요, 대규모 유량 제어 검증용(dev/test 프로필 활성화) |
 
 Swagger UI는 `/swagger-ui.html` 경로로 확인할 수 있습니다.
 
@@ -203,9 +207,9 @@ java -jar build/libs/eshop-refact-0.0.1-SNAPSHOT.jar --spring.profiles.active=lo
   - 조회 성공: `20`
   - 조회 실패: `0`
 
-이 테스트는 트랜잭션 내부에 150ms 지연을 넣어 긴 트랜잭션 상황을 재현합니다.  
-결과적으로 DB 비관적 락은 더 빨리 끝났지만, **커넥션 풀이 잠겨 조회 트래픽이 모두 실패**했습니다.  
-반면 Redis 분산 락은 더 오래 걸렸지만, **조회 요청을 모두 살려 시스템 가용성을 지켰습니다.**
+이 테스트는 **Spring AOP(`TestLatencyAspect`)를 활용해 트랜잭션 내부에 150ms의 인위적인 지연(Latency)을 주입**하여, 실제 트래픽 폭주로 인한 긴 트랜잭션 상황을 재현했습니다.  
+결과적으로 DB 비관적 락은 더 빨리 끝났지만, **커넥션 풀이 잠겨 단순 조회 트래픽까지 모두 실패(타임아웃)**했습니다.  
+반면 Redis 분산 락은 처리 시간은 더 걸렸지만, **조회 요청을 100% 살려내어 시스템 가용성을 지켰습니다.**
 
 ### 3. 락 비용 비교
 `OrderConcurrencyIntegrationTest`
@@ -313,4 +317,4 @@ eshop-refact/
 
 - 상품 등록/가격 수정 API는 `ADMIN` 권한이 있어야 호출할 수 있습니다.
 - 주문 생성은 JWT 인증만으로 끝나지 않고, 대기열 진입 허용 상태여야 합니다.
-- `/api/orders/queue`는 테스트/로컬 성격의 지원 API이므로 `local`, `dev`, `test` 프로필에서만 활성화됩니다.
+- `/api/orders/queue`는 실제 인프라(API Gateway, Kafka 등) 도입 전, 백엔드 애플리케이션 레벨에서의 **대규모 부하 제어 및 유량 제어 능력을 검증하기 위한 PoC(개념 증명) 목적의 API**입니다.
