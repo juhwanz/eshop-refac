@@ -21,14 +21,12 @@ public class RedisConfig {
 
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
-        // [Tuning] TTL 설정: 1분
-        // 근거 : 상품 재고(Stock)는 실시간성이 중요하므로 Cache Hit Ratio를 조금 포기하더라도
-        // DB와 캐시 간의 불일치(Stale Data) 발생 시간을 최소화하기 위해 짧은 TTL 정책 채택.
+
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofMinutes(1))
+                .entryTtl(Duration.ofMinutes(1)) // [Tuning] TTL 설정: 1분
                 .disableCachingNullValues()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()));
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer())) // Key : 일반 문자열로
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer())); // V : JSON
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(config)

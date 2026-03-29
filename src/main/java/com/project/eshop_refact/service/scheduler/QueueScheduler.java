@@ -14,12 +14,11 @@ public class QueueScheduler {
 
     private final WaitingQueueService waitingQueueService;
 
-    // TODO: 향후 부하 테스트를 통해 적정 허용량 산출 필요 (현재는 임시값 100으로 설정)
-    private static final long ENTER_COUNT = 100L;
+    private static final long ENTER_COUNT = 100L; // TODO: 향후 부하 테스트를 통해 적정 허용량 산출 필요 (현재는 임시값 100으로 설정)
 
     @Scheduled(fixedDelay = 1000)
     @SchedulerLock(
-            name = "queueSchedulerLock",    // 락의 고유 이름 (이 이름으로 락을 선점)
+            name = "queueSchedulerLock",    // 락의 고유 이름
             lockAtLeastFor = "900ms",       // 락을 유지할 최소 시간 (중복 실행 완벽 방지)
             lockAtMostFor = "2s"            // 락을 유지할 최대 시간 (서버 다운 시 데드락 방지)
     )

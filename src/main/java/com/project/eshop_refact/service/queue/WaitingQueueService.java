@@ -9,12 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Set;
 
-/**
- * [Traffic Throttling Service]
- * Architecture: Dual-Key Strategy (ZSet for Order, String with TTL for Access)
- * - Waiting Queue (ZSet): 시간순 정렬(FIFO) 및 대기 순번 조회 (O(logN))
- * - Active Ticket (String + TTL): 진입 허용 유저에게 만료 시간이 있는 토큰 발급 (좀비 유저 방지 및 O(1) 고속 조회)
- */
+
+// [Traffic Throttling Service]
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -30,7 +26,7 @@ public class WaitingQueueService {
 
     public Long registerQueue(Long userId){
         long unixTimestamp = System.currentTimeMillis();
-        // Scoring: Unix Timestamp를 Score로 사용하여 입도 높은 FIFO 정렬 보장
+        // Scoring: Unix Timestamp를 Score로 사용하여 FIFO 정렬 보장
         redisTemplate.opsForZSet().add(WAITING_KEY, userId.toString(), unixTimestamp);
 
         return getRank(userId);
@@ -48,7 +44,7 @@ public class WaitingQueueService {
     public void allowUsers(long count) {
         long processed = 0;
 
-        // Heap Memory Safety: 대량의 유저 처리 시 OOM 방지를 위해 Chunk 단위 처리
+        // Heap Memory Safety:  OOM 방지를 위해 Chunk 단위 처리
         while(processed < count){
             long fetchCount = Math.min(CHUNK_SIZE, count - processed);
             Set<String> users = redisTemplate.opsForZSet().range(WAITING_KEY, 0 , fetchCount - 1);

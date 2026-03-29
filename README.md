@@ -1,91 +1,75 @@
-# 🛒 E-Shop Refactoring (High-Traffic Backend)
+# 🛒 E-Shop Refactoring
 
+> 주문 정합성, 조회 가용성, 깊은 페이지 조회 성능, 캐시 정합성을 실제 테스트로 검증한 Spring Boot 기반 이커머스 백엔드 프로젝트입니다.
 
 ![Java](https://img.shields.io/badge/Java-17-orange?logo=java)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green?logo=springboot)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.0-green?logo=springboot)
 ![Redis](https://img.shields.io/badge/Redis-Redisson-red?logo=redis)
-![QueryDSL](https://img.shields.io/badge/QueryDSL-5.0-lightgrey)
+![QueryDSL](https://img.shields.io/badge/QueryDSL-5.1.0-lightgrey)
 
-##  프로젝트 개요
-인터넷 이용 시, 서버가 터져서 이용에 불편했던 경험이 있습니다. 개발자를 꿈꾸며 가장 고민했던 부분은 "내가 짠 코드도 만약 많은 사용자가 한 번에 접속해, 동시에 눌러도 버틸 수 있을까?"였습니다.
-이 프로젝트는 기존의 단순한 쇼핑몰 로직을 **대규모 트래픽 환경**을 가정하여 리팩토링한 결과물입니다. 동시성 이슈로 재고가 안 맞거나, 쿼리가 느려 DB가 뻗는 상황을 직접 시뮬레이션 하고, Redis 분산락과 No-Offset 페이징 기술을 도입해
-문제를 해결하는 과정에 집중했습니다.
+## 프로젝트 소개
 
-##  Tech Stack
-| Category | Technology | Description |
-|---|---|---|
-| **Language** | Java 17 | JDK 17 (LTS) |
-| **Framework** | Spring Boot 3.x | Spring Security, JPA |
-| **Database** | MySQL 8.0, Redis | Prod(MySQL), Cache/Lock(Redis) |
-| **Testing** | JUnit5, Mockito | 통합 테스트 위주의 검증 |
-## Cloud Infrastructure & CI/CD Pipeline
-단순한 기능 구현을 넘어, 실제 서비스 운영에 적합한 안전하고 유연한 인프라 아키텍처를 직접 설계하고 구축했습니다.
+이 프로젝트는 단순한 쇼핑몰 CRUD 구현보다, **트래픽이 몰릴 때 실제로 문제가 되는 지점**을 개선하는 데 초점을 맞췄습니다.
 
-### 1. AWS EC2(WAS) & RDS(DB) 물리적 분리 및 보안 아키텍처
-* **자원 독립성 및 스케일링:** WAS와 DB를 물리적으로 분리하여 트래픽 폭증 시 병목 지점에 따라 독립적으로 확장할 수 있는 기반 마련했습니다.
+핵심 질문은 네 가지였습니다.
 
-* **VPC & Private Subnet 기반 보안:** RDS는 외부 인터넷에서의 직접 접근을 원천 차단하고, EC2 인스턴스의 특정 보안 그룹을 통해서만 통신할 수 있도록 인바운드 규칙을 설계하여 데이터 보안을 강화했습니다.
+- 동시에 같은 상품을 주문해도 **재고가 정확하게 유지되는가**
+- 락 경쟁이 심해질 때도 **조회 요청이 살아남는가**
+- 상품 수가 많아져도 **깊은 페이지 조회가 급격히 느려지지 않는가**
+- 캐시를 붙인 뒤에도 **수정 직후 최신 데이터 정합성이 보장되는가**
 
-### 2. Docker Immutable Infrastructure 및 최적화
+이를 해결하기 위해 다음 구조를 적용했습니다.
 
-* **멀티 스테이지 빌드:** 무거운 빌드 환경(JDK)과 가벼운 실행 환경(JRE)을 분리하여 최종 Docker 이미지 용량을 극단적으로 경량화하였습니다.
+- **주문 정합성**: Redis 분산 락 + `RedissonLockStockFacade`
+- **조회 가용성**: 락 대기를 DB 바깥으로 분리해 DB 커넥션 점유 최소화
+- **유량 제어**: Redis ZSet 대기열 + TTL 기반 활성 토큰
+- **대용량 조회 성능**: QueryDSL 기반 No-Offset 페이지네이션 + `Slice`
+- **주문 조회 최적화**: `default_batch_fetch_size=100`으로 N+1 완화
+- **캐시 정합성**: `@TransactionalEventListener(AFTER_COMMIT)` 기반 캐시 무효화
 
-* **보안 강화 :** 컨테이너 내부 프로세스가 root 권한으로 실행되는 것을 방지하기 위해 전용 유저(spring)를 생성하여 최소 권한 원칙을 적용했습니다.
+## 핵심 개선 포인트
 
-* **레이어 캐싱 :** 변경 빈도가 낮은 **build.gradle**을 먼저 복사하도록 Dockerfile 최적화하여 빌드 성능 향상.
+### 1. Redis 분산 락으로 주문 정합성을 제어
+주문 생성은 `OrderController -> QueueInterceptor -> RedissonLockStockFacade -> OrderService` 흐름으로 처리됩니다.  
+락 획득/해제는 파사드에서 담당하고, 실제 주문 트랜잭션은 서비스에서 짧게 수행하도록 분리했습니다.
 
-### 3. Nginx Blue/Green 무중단 배포
-* GitHub Actions와 Nginx 리버스 프록시를 활용하여 CI/CD 파이프라인 구축.
-* 새 컨테이너(Green)가 완벽히 부팅되면 Nginx의 동적 라우팅 변수를 스위칭하여 단 0.1초의 접속 끊김 없이 트래픽을 새로운 버전으로 전환.
-## 핵심 아키텍처 및 설계 원칙
+### 2. 대기열을 ZSet와 활성 토큰으로 분리
+`WaitingQueueService`는 다음 두 키를 사용합니다.
 
-### 1. DDD(도메인 주도 설계) 및 객체지향 패러다임 적용
+- `waiting_queue` : 대기 순서를 관리하는 ZSet
+- `active_user:{userId}` : 진입 허용 여부를 확인하는 TTL 600초 String 키
 
-- **DDD (도메인 주도 설계) 및 객체지향 패러다임**
-  - 무분별한 Setter 사용을 지양하여 엔티티의 불변성을 보호했습니다.
-  - `removeStock`, `cancel` 등 핵심 비즈니스 로직을 Service가 아닌 도메인 엔티티 내부에 응집시켜 캡슐화(Rich Domain Model)를 구현했습니다.
-  - 정적 팩토리 메서드(`createOrder`, `createOrderItem`)를 통해 객체 생성과 연관관계 매핑 로직을 일원화했습니다.
-  
-- **디자인 패턴을 통한 결합도 완화 (Decoupling)**
-  - **Facade 패턴:** `RedissonLockStockFacade`를 도입하여 '락 획득/해제'의 인프라적 관심사와 '재고 차감'이라는 비즈니스 트랜잭션의 관심사를 완벽히 분리했습니다.
-  - **Strategy 패턴:** 동시성 제어 방식(일반 차감 vs 비관적 락)을 런타임에 유연하게 교체할 수 있도록 `StockStrategy` 인터페이스를 구현해 OCP를 준수했습니다. 
-  
-- **스케쥴러 분산 락 제어(ShedLock)**
-  - 다중 서버(Scale-out) 환경에서 대기열 통과 스케줄러가 중복 실행되지 않도록 Redis 기반의 ShedLock을 적용하여 데이터 정합성을 보호했습니다.
+이 구조 덕분에 주문 요청 시 인터셉터는 `hasKey()` 기반으로 빠르게 진입 여부를 검사할 수 있습니다.
 
-- **N+1문제 및 페이징 메모리 초과(OOM) 방어**
-  - Fetch Join 시 발생할 수 있는 메모리 페이징 (OOM) 이슈를 차단하기 위해 `default_batch_fetch_size: 100`을 설정 적용했습니다.
-  - 이를 통해 1:N 관계 조회 시 발생하는 N+1문제를 IN절 방식으로 안전하게 해결하였습니다.
-  
-## Troubleshooting
+### 3. 주문 목록 조회는 Fetch Join 대신 Batch Fetch 사용
+컬렉션 Fetch Join과 페이징을 함께 쓰면 Hibernate가 메모리 페이징으로 전환될 수 있습니다.  
+이 프로젝트는 `default_batch_fetch_size=100`을 적용해, 주문 조회 페이징 안정성을 유지하면서 N+1 문제를 줄였습니다.
 
-### 1. DB 커넥션 고갈 방지를 위한 Redis 분산 락 도입
-* **상황:** 재고 정합성을 맞추기 위해 `Pessimistic Lock`을 걸었습니다.
-* **문제:** 비관적 락으로 재고 정합성을 맞출 경우, 락 대기 시간 동안 DB 커넥션이 점유되어 단순 상품 조회나 로그인 요청까지 타임아웃이 발생했습니다.
-* **해결:**
-    * 락의 부하를 DB가 아닌 Redis가 감당하도록 **Redisson 분산 락**을 도입했습니다.
-    * **Facade 패턴**을 적용해 비즈니스 로직 전후로 락을 제어해 DB 트랜잭션을 최소화했습니다.
-* **결과:** DB 커넥션 풀을 5개로 제한한 테스트 환경에서도 **조회 API가 100% 성공**하는 것을 확인했습니다.
+### 4. 상품 목록은 Offset과 No-Offset을 모두 제공
+- `GET /api/products/search` : Offset 기반 `Page`
+- `GET /api/products/search/no-offset` : No-Offset 기반 `Slice`
 
-### 2. O(1) 고속 조회를 위한 유량 제어(대기열) 토큰 설계
-* **상황:** 접속자 대기열을 `Sorted Set` 하나로 구현했습니다.
-* **문제:** 대기열을 `Sorted Set`하나로 구현했을 때, 무거운 `ZRANK` 명령어로 인해 대기 인원이 늘어날수록 Redis CPU 사용량 급증하는 문제.
-* **해결:** 진입 허용 유저에게 만료시간(TTL 600초)이 있는 개별 String 토큰(`active_user: {userid}`)을 발급하는 Dual-Key Strategy 도입했습니다.
-* **결과:** 인터셉터 권한을 확인할 때 `hasKey`를 사용해 O(1) 고속 조회를 수행하도록 성능 극대화했습니다.
+운영성 측면에서 전통적인 페이지 이동과 스크롤형 조회를 모두 비교할 수 있게 분리했습니다.
 
-### 3. 조회 성능 개선 (No-Offset 기반 페이지네이션)
-* **상황:** 일반적인 `Offset` 페이징으로 상품 목록을 구현했습니다.
-* **문제:** 테스트 데이터를 50만 개 넣고 뒷페이지를 조회하니, 앞의 데이터를 다 읽고 버리는 방식(Offset) 때문에 쿼리가 매우 느려졌습니다.
-* **해결:** **No-Offset(Cursor-based)** 방식을 도입해 클러스터드 인덱스(PK)를 활용한 조건 탐색으로 변경했습니다.
-* **결과:** 데이터 스캔 위치와 상관없이 일정한 조회 속도를 확보했습니다.
+### 5. 캐시는 조회 속도뿐 아니라 정합성까지 검증
+상품 단건 조회는 `@Cacheable("products")`를 사용하고, 수정/재고 변경 시에는 이벤트를 발행한 뒤 `AFTER_COMMIT` 시점에 캐시를 제거합니다.  
+즉, 트랜잭션이 롤백되면 캐시 무효화도 실행되지 않도록 구성했습니다.
 
-### 4. 트랜잭션 이벤트기반 캐시 정합성 보장 및 TTL 튜닝
-* **문제:** 상품 조회에 Look-aside 캐싱 적용 후 데이터 수정 시 트랜잭션 롤백이 발생하면 캐시 불일치 위험이 존재했습니다.
-* **해결:** 스프링의 `@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)`을 이용해 트랜잭션이 완벽히 커밋된 직후에만 캐시 무효화(Evict)가 실행되도록 개선했습니다.
-* **튜닝:** 상품 재고의 실시간성을 반영하기 위해 Cache Hit Ratio를 일부 포기하더라도 `RedisConfig`의 캐시 TTL을 10분에서 1분으로 단축하여 데이터 정합성을 최우선 확보 했습니다.
+## 기술 스택
 
-## 🏗 System Architecture (Order Flow)
-데이터 정합성과 성능의 균형을 맞추기 위해 **대기열(Queue) - 파사드(Facade) - 서비스(Service)** 계층 구조를 적용했습니다.
+| 구분 | 기술 |
+|---|---|
+| Language | Java 17 |
+| Framework | Spring Boot 3.3.0, Spring Web, Spring Data JPA, Spring Security, Validation |
+| Database | MySQL |
+| Cache / Lock | Redis, Redisson, ShedLock |
+| Query | QueryDSL 5.1.0 |
+| Auth | JWT |
+| Test | JUnit 5, Spring Boot Test, Spring Security Test, H2, k6 |
+| Docs | SpringDoc OpenAPI |
+| Infra | Docker, Docker Compose, GitHub Actions, Nginx 기반 배포 스크립트 |
+
+## 아키텍처
 
 ```mermaid
 sequenceDiagram
@@ -93,45 +77,240 @@ sequenceDiagram
     participant Interceptor as QueueInterceptor
     participant Redis as Redis(Queue/Lock)
     participant Facade as RedissonLockStockFacade
-    participant Service as OrderService(Tx)
+    participant Service as OrderService
     participant DB as MySQL
 
-    User->>Interceptor: 1. 주문 요청 (POST /api/orders)
-    Interceptor->>Redis: 2. 활성 유저 여부 확인 (hasKey, O(1))
-    alt Not Allowed
+    User->>Interceptor: POST /api/orders
+    Interceptor->>Redis: active_user:{userId} 확인
+    alt 진입 불가
         Interceptor-->>User: 429 Too Many Requests
-    else Allowed
-        Interceptor->>Facade: 3. 요청 전달
-        Facade->>Redis: 4. 분산 락 획득 시도 (Redisson tryLock)
-        alt Lock Acquired
-            Facade->>Service: 5. 트랜잭션 시작
-            Service->>DB: 6. 재고 차감 및 주문 저장
-            Service-->>Facade: 7. 트랜잭션 커밋
-            Facade->>Redis: 8. 락 해제 (unlock) & 대기열 이탈
-            Facade-->>User: 200 OK
-        else Lock Failed
-            Facade-->>User: Exception (Retry)
+    else 진입 가능
+        Interceptor->>Facade: 주문 요청 전달
+        Facade->>Redis: 상품 단위 분산 락 획득
+        alt 락 획득 성공
+            Facade->>Service: 주문 트랜잭션 실행
+            Service->>DB: 재고 차감 + 주문 저장
+            Service-->>Facade: 커밋
+            Facade->>Redis: 락 해제 + 활성 토큰 제거
+            Facade-->>User: 201 Created
+        else 락 획득 실패
+            Facade-->>User: 503 Service Unavailable
         end
     end
 ```
 
-## Testing (검증)
-* [x] **동시성 테스트:** 45명 동시 주문 시 재고 40개 정확히 소진 (성공)
-* [x] **가용성 테스트:** DB 커넥션 고갈 시뮬레이션 및 분산 락 방어 (성공)
-* [x] **성능 테스트:** Offset vs No-Offset 50만 건 대용량 데이터 페이징 속도 비교 (성공)
-* [x] **캐시 정합성 테스트:** 트랜잭션 정상 커밋 시 캐시 갱신 검증(성공)
+## 주요 기능
 
-## Future Scope
-* **High Availability:** 현재 단일 노드로 구성된 Redis를 추후 Redis Cluster로 확장하여 단일 장애점(SPOF) 문제를 극복하고 고가용성을 확보할 계획입니다.
+### 사용자
+- 회원가입
+- 로그인
+- Access Token / Refresh Token 발급
+- Refresh Token Redis 저장(`RT:{email}`, TTL 14일)
 
-##  Getting Started
+### 상품
+- 상품 등록
+- 상품 단건 조회
+- 조건 검색
+- No-Offset 스크롤 검색
+- 가격 수정
+- 상품 단건 조회 캐시
+
+### 주문
+- 주문 생성
+- 내 주문 목록 조회
+- 주문 취소
+
+### 대기열
+- 대기열 등록 API 제공
+- 스케줄러가 1초마다 최대 100명 진입 허용
+- 주문 POST 요청에서 대기열 통과 여부 검사
+
+## API 요약
+
+| Method | Path | 설명 | 비고 |
+|---|---|---|---|
+| POST | `/api/users/signup` | 회원가입 | 공개 |
+| POST | `/api/users/login` | 로그인 | 공개 |
+| GET | `/api/products/{productId}` | 상품 단건 조회 | 공개 |
+| GET | `/api/products/search` | 상품 검색(Page) | 공개 |
+| GET | `/api/products/search/no-offset` | 상품 스크롤 검색(Slice) | 공개 |
+| POST | `/api/products` | 상품 등록 | `ADMIN` 권한 필요 |
+| PATCH | `/api/products/{productId}/price` | 상품 가격 수정 | `ADMIN` 권한 필요 |
+| POST | `/api/orders` | 주문 생성 | JWT 필요, 대기열 통과 필요 |
+| GET | `/api/orders` | 내 주문 목록 조회 | JWT 필요 |
+| PATCH | `/api/orders/{orderId}/cancel` | 주문 취소 | JWT 필요 |
+| POST | `/api/orders/queue` | 대기열 등록 | `local`/`dev`/`test` 프로필에서만 활성화, JWT 필요 |
+
+Swagger UI는 `/swagger-ui.html` 경로로 확인할 수 있습니다.
+
+## 실행 방법
+
+### 1) 사전 준비
+- Java 17
+- Docker / Docker Compose
+- MySQL 8
+- Redis
+
+### 2) 환경 변수
+애플리케이션 실행 전 아래 환경 변수를 설정해야 합니다.
+
 ```bash
-# 1. Clone Repository
-git clone https://github.com/your-repo/eshop-refact.git
+export DB_PASSWORD=your_db_password
+export JWT_SECRET_KEY=your_base64_encoded_jwt_secret
+```
 
-# 2. Build
-./gradlew build
+### 3) 로컬 인프라 실행
+`docker-compose.yml`에는 MySQL과 Redis가 포함되어 있습니다.
 
-# 3. Run (Local Profile)
+```bash
+docker compose up -d mysql redis
+```
+
+### 4) 애플리케이션 실행
+```bash
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
+
+또는 빌드 후 실행할 수 있습니다.
+
+```bash
+./gradlew clean build
 java -jar build/libs/eshop-refact-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
 ```
+
+## 테스트 및 검증
+
+아래 수치는 첨부된 테스트 로그 기준입니다. 실행 시점과 환경에 따라 절대값은 달라질 수 있지만, **비교 방향성과 결과 해석**은 코드와 로그에서 동일하게 확인됩니다.
+
+### 1. 주문 정합성
+`OrderConcurrencyIntegrationTest`
+
+- 45명 동시 주문
+- 재고 40개 기준
+- 성공 40건 / 실패 5건 / 남은 재고 0
+
+초과 주문은 일부 실패했지만, **재고가 음수로 내려가지 않고 최종 재고가 정확히 0으로 유지**됐습니다.
+
+### 2. 조회 가용성
+`OrderAvailabilityIntegrationTest`
+
+- DB 비관적 락
+  - 총 소요 시간: `418ms`
+  - 조회 성공: `0`
+  - 조회 실패: `20`
+- Redis 분산 락
+  - 총 소요 시간: `8766ms`
+  - 조회 성공: `20`
+  - 조회 실패: `0`
+
+이 테스트는 트랜잭션 내부에 150ms 지연을 넣어 긴 트랜잭션 상황을 재현합니다.  
+결과적으로 DB 비관적 락은 더 빨리 끝났지만, **커넥션 풀이 잠겨 조회 트래픽이 모두 실패**했습니다.  
+반면 Redis 분산 락은 더 오래 걸렸지만, **조회 요청을 모두 살려 시스템 가용성을 지켰습니다.**
+
+### 3. 락 비용 비교
+`OrderConcurrencyIntegrationTest`
+
+- 순수 락 비교
+  - DB 비관적 락: `199ms`
+  - Redis 분산 락: `432ms`
+- 전체 주문 로직 비교
+  - DB 락(단순 차감): `67ms`
+  - Redis 락(전체 주문): `456ms`
+
+Redis 분산 락은 더 느리지만, 이 프로젝트는 **단일 요청의 속도보다 시스템 전체의 안정성**을 우선하는 방향을 선택했습니다.
+
+### 4. 주문 조회 N+1 완화
+`OrderQueryIntegrationTest`
+
+- 기존 구조: 주문 1회 조회 + 주문별 `OrderItem` 추가 조회 = `1 + N`
+- 개선 구조: 주문 조회 1회 + `IN` 절 기반 배치 조회 1회 = 총 `2회`
+
+테스트에서는 Fetch Join + 페이징 시 아래 경고가 발생하는 구조도 함께 비교합니다.
+
+```text
+HHH90003004: firstResult/maxResults specified with collection fetch; applying in memory
+```
+
+즉, 이 프로젝트의 선택은 “무조건 Fetch Join”이 아니라, **페이징 안정성을 유지하면서 N+1을 줄이는 Batch Fetch**입니다.
+
+### 5. 캐시 정합성
+`ProductCacheIntegrationTest`
+
+검증 흐름:
+
+- 1차 조회: Cache Miss -> DB 조회 -> Cache Put
+- 가격 수정: 캐시 Evict
+- 2차 조회: Miss -> 최신 DB 값 조회 -> Cache Put
+
+최종 확인 값은 `20000원`이며, 수정 이후에도 **오래된 캐시가 아니라 최신 값이 다시 적재**되는 것을 확인했습니다.
+
+### 6. 깊은 페이지 조회 성능
+`ProductDeepPaginationTest`
+
+- Offset(40만 건 스캔): `33ms`
+- No-Offset(인덱스 기반): `25ms`
+- 첫 페이지(Offset 0): `5ms`
+- 끝 페이지(Offset 40만): `36ms`
+
+또한 로그 기준으로,
+
+- Offset 방식은 `count(...)` 쿼리가 함께 발생
+- No-Offset 방식은 `where id < ?` 기반 조회로 `count()` 없이 동작
+
+즉, **뒤 페이지로 갈수록 느려지는 Offset의 특성과 count 쿼리 비용**을 줄이기 위해 No-Offset + `Slice`를 적용했습니다.
+
+## 프로젝트 구조
+
+```text
+eshop-refact/
+├── src/main/java/com/project/eshop_refact
+│   ├── config
+│   ├── controller
+│   ├── domain
+│   ├── dto
+│   ├── event
+│   ├── exception
+│   ├── facade
+│   ├── interceptor
+│   ├── repository
+│   └── service
+├── src/main/resources
+│   ├── application.yaml
+│   ├── application-secret.yaml
+│   └── application-sercret.example.yml
+├── src/test/java/com/project/eshop_refact
+│   ├── controller
+│   ├── domain
+│   ├── integration
+│   ├── service
+│   └── stressTest
+├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.prod.yml
+├── deploy.sh
+├── load-test.js
+└── .github/workflows/deploy.yml
+```
+
+## 배포
+
+리포지토리에는 운영 배포를 위한 파일도 포함되어 있습니다.
+
+- `Dockerfile`
+  - 멀티 스테이지 빌드
+  - JRE 런타임 이미지 사용
+  - 비루트 사용자(`spring`)로 실행
+- `.github/workflows/deploy.yml`
+  - `main` 브랜치 push 시 Gradle 빌드
+  - Docker Hub 이미지 푸시
+  - 원격 서버 접속 후 `deploy.sh` 실행
+- `deploy.sh` + `docker-compose.prod.yml`
+  - blue/green 컨테이너 교체
+  - Nginx upstream 포트 전환
+  - Redis + 원격 MySQL(RDS 엔드포인트) 기반 실행
+
+## 참고
+
+- 상품 등록/가격 수정 API는 `ADMIN` 권한이 있어야 호출할 수 있습니다.
+- 주문 생성은 JWT 인증만으로 끝나지 않고, 대기열 진입 허용 상태여야 합니다.
+- `/api/orders/queue`는 테스트/로컬 성격의 지원 API이므로 `local`, `dev`, `test` 프로필에서만 활성화됩니다.

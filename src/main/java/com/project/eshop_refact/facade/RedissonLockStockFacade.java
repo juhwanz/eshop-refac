@@ -73,7 +73,10 @@ public class RedissonLockStockFacade {
     /**
      * 주문 취소 시 재고 복구 동시성 제어
      */
-    public void cancelOrder(Long orderId, Long productId, Long userId) {
+    public void cancelOrder(Long orderId, Long userId) {
+        // 주문 정보를 이용해 락 대상 상품 ID 동적 식별
+        Long productId = orderService.getProductIdByOrderId(orderId);
+
         RLock lock = redissonClient.getLock("product:stock:" + productId);
 
         try {
