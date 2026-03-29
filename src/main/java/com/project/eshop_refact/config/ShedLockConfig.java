@@ -16,7 +16,6 @@ public class ShedLockConfig {
     @Bean
     public LockProvider lockProvider(RedisConnectionFactory connectionFactory) {
         // 기존에 사용 중인 Redis 환경을 설정 주입받아 ShedLock의 저장소로 지정
-        // "eshop_lock"은 Redis 내부에 저장될 락 키의 접두사(Prefix) 환경명입니다.
-        return new RedisLockProvider(connectionFactory, "eshop_lock");
+        return new RedisLockProvider(connectionFactory, "eshop_lock"); // Prefix
     }
 }

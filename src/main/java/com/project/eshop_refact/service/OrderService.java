@@ -62,6 +62,14 @@ public class OrderService {
         return orderPage.map(OrderDto.Response::new);
     }
 
+    // 락 흭득 전 어떤 상품에 락을 걸지 알아내기 위한 조회 메서드
+    public Long getProductIdByOrderId(Long orderId){
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow( () -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        // 첫 번째 상품 ID 반환
+        return order.getOrderItems().get(0).getProduct().getId();
+    }
     @Transactional
     public void cancelOrder(Long orderId, Long userId) {
         Order order = orderRepository.findById(orderId)
