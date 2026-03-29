@@ -60,7 +60,7 @@ public class OrderController {
             @AuthenticationPrincipal UserDetailsImpl userDetails
     ){
         Long userId = userDetails.getUser().getId();
-        orderService.cancelOrder(orderId, userId);
+        redissonLockStockFacade.cancelOrder(orderId, userId);
         return ResponseEntity.ok(ApiResponse.success("주문 취소 성공"));
     }
 }
