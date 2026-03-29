@@ -37,7 +37,7 @@ public class SecurityConfig {
                         .accessDeniedHandler(deniedHandler)
                 )
                 .authorizeHttpRequests(authz ->authz
-                        .requestMatchers("/api/users/signup", "/api/users/login").permitAll()
+                        .requestMatchers("/api/users/signup", "/api/users/login", "/api/users/reissue").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/api/orders/queue").permitAll() // 테스트 전용 허용 명시
