@@ -25,7 +25,6 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
-    // DIP (Dependency Inversion Principle): 구체적인 락 전략(비관적/낙관적/Redis)에 의존하지 않고 추상화에 의존
     private final StockStrategy stockStrategy;
 
     /**
@@ -62,7 +61,7 @@ public class OrderService {
         return orderPage.map(OrderDto.Response::new);
     }
 
-    // 락 흭득 전 어떤 상품에 락을 걸지 알아내기 위한 조회 메서드
+    // 락 흭득 전 어떤 상품에 락을 걸지 알아내기 위한 조회 메서드 : Redis 분산 락은 현재 상품 단위로 걸리게 설계 -> 취소 시 상품 ID를 동적으로 제공.
     public Long getProductIdByOrderId(Long orderId){
         Order order = orderRepository.findById(orderId)
                 .orElseThrow( () -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
