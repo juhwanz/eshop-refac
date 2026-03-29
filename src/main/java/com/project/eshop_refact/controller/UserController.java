@@ -6,6 +6,7 @@ import com.project.eshop_refact.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -32,5 +33,20 @@ public class UserController {
         UserDto.TokenResponse tokenDto = userService.login(requestDto);
         return ResponseEntity.ok(ApiResponse.success("로그인 성공", tokenDto));
     }
+
+    // 토큰 재발급 : AccessToken 만료시 Refresh Token 이용해 재 발급
+    @PostMapping("/reissue")
+    public ResponseEntity<ApiResponse<UserDto.TokenResponse>> reissue(@RequestBody @Valid UserDto.RefreshRequest requestDto) {
+        UserDto.TokenResponse tokenDto = userService.reissue(requestDto);
+        return ResponseEntity.ok(ApiResponse.success("토큰 재발급 성공", tokenDto));
+    }
+
+    // 로그아웃: SecurityContext에서 추출한 정보로 Redis 토큰 삭제
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal com.project.eshop_refact.config.UserDetailsImpl userDetails) {
+        userService.logout(userDetails.getUser().getEmail());
+        return ResponseEntity.ok(ApiResponse.success("로그아웃 성공"));
+    }
 }
+
 

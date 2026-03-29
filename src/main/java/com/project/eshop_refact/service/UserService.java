@@ -8,6 +8,7 @@ import com.project.eshop_refact.dto.UserDto;
 import com.project.eshop_refact.exception.BusinessException;
 import com.project.eshop_refact.exception.ErrorCode;
 import com.project.eshop_refact.repository.UserRepository;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -61,5 +62,44 @@ public class UserService {
         );
 
         return new UserDto.TokenResponse(accessToken, refreshToken);
+    }
+
+    @Transactional
+    public UserDto.TokenResponse reissue(UserDto.RefreshRequest requestDto){
+        String refreshToken = requestDto.getRefreshToken();
+
+        // 검증
+        Claims claims = jwtUtil.getClaimsIfValid(refreshToken);
+        if(claims == null || !claims.get("type").equals("REFRESH") ){
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
+        }
+
+        String email = claims.getSubject();
+        String redisKey = "RT:" + email;
+
+        // Redis 토큰과 비교(탈취 방지)
+        String savedToken = redisTemplate.opsForValue().get(redisKey);
+        if(savedToken == null || !savedToken.equals(refreshToken)){
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+        // 토큰 재랍급
+        String newAccessToken = jwtUtil.createToken(user.getEmail(), user.getRole());
+        String newRefreshToken = jwtUtil.createRefreshToken(user.getEmail());
+
+        redisTemplate.opsForValue().set(redisKey, newRefreshToken, 14, TimeUnit.DAYS);
+
+        return new UserDto.TokenResponse(newAccessToken, newRefreshToken);
+    }
+
+    @Transactional
+    public void logout(String email){
+        String redisKey = "RT:" + email;
+        if(Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))){
+            redisTemplate.delete(redisKey);
+        }
     }
 }
