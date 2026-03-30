@@ -1,7 +1,13 @@
 package com.project.eshop_refact.domain;
 
-import com.project.eshop_refact.exception.BusinessException;
-import com.project.eshop_refact.exception.ErrorCode;
+import com.project.eshop_refact.domain.order.Order;
+import com.project.eshop_refact.domain.order.OrderItem;
+import com.project.eshop_refact.domain.order.OrderStatus;
+import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;

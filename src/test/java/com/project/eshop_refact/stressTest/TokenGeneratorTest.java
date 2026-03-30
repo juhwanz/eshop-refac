@@ -1,9 +1,9 @@
 package com.project.eshop_refact.stressTest;
 
-import com.project.eshop_refact.config.JwtUtil;
-import com.project.eshop_refact.domain.User;
-import com.project.eshop_refact.domain.UserRoleEnum;
-import com.project.eshop_refact.repository.UserRepository;
+import com.project.eshop_refact.global.security.JwtUtil;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.domain.user.UserRepository;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

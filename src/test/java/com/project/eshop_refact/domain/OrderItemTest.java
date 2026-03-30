@@ -1,9 +1,9 @@
 package com.project.eshop_refact.domain;
 
-import com.project.eshop_refact.exception.BusinessException;
+import com.project.eshop_refact.domain.order.OrderItem;
+import com.project.eshop_refact.domain.product.Product;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.core.parameters.P;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

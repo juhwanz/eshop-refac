@@ -1,20 +1,19 @@
 package com.project.eshop_refact.controller;
 
-import com.project.eshop_refact.config.JwtUtil;
-import com.project.eshop_refact.config.SecurityConfig;
-import com.project.eshop_refact.config.UserDetailsImpl;
-import com.project.eshop_refact.config.WebConfig;
-import com.project.eshop_refact.domain.Order;
-import com.project.eshop_refact.domain.OrderStatus;
-import com.project.eshop_refact.domain.User;
-import com.project.eshop_refact.domain.UserRoleEnum;
-import com.project.eshop_refact.dto.OrderDto;
-import com.project.eshop_refact.exception.BusinessException;
-import com.project.eshop_refact.exception.ErrorCode;
-import com.project.eshop_refact.facade.RedissonLockStockFacade;
-import com.project.eshop_refact.interceptor.QueueInterceptor;
-import com.project.eshop_refact.service.OrderService;
-import com.project.eshop_refact.service.UserDetailsServiceImpl;
+import com.project.eshop_refact.domain.order.*;
+import com.project.eshop_refact.domain.queue.TestSupportController;
+import com.project.eshop_refact.domain.queue.WaitingQueueService;
+import com.project.eshop_refact.global.security.JwtUtil;
+import com.project.eshop_refact.global.security.SecurityConfig;
+import com.project.eshop_refact.global.security.UserDetailsImpl;
+import com.project.eshop_refact.global.config.WebConfig;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
+import com.project.eshop_refact.domain.order.RedissonLockStockFacade;
+import com.project.eshop_refact.global.interceptor.QueueInterceptor;
+import com.project.eshop_refact.global.security.UserDetailsServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,7 +31,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,7 +55,8 @@ class OrderControllerTest {
 
     @MockBean OrderService orderService;
     @MockBean RedissonLockStockFacade redissonLockStockFacade;
-    @MockBean com.project.eshop_refact.service.queue.WaitingQueueService waitingQueueService;
+    @MockBean
+    WaitingQueueService waitingQueueService;
 
     // Filter Chain 통과를 위한 껍데기들. -> 컨트롤러에 관련된 빈들만 로드 하지만, 자동으로 띄우는 애들도 있음.
     @MockBean
