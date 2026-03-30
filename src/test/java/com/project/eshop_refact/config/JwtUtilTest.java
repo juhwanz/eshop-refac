@@ -1,14 +1,12 @@
 package com.project.eshop_refact.config;
 
-import com.project.eshop_refact.domain.UserRoleEnum;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.global.security.JwtUtil;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.sql.Ref;
-
-import static org.assertj.core.api.Assertions.as;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // Unit Test : 스프링 컨텍스트 없이 빠르게 시도 가능.

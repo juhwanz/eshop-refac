@@ -1,12 +1,13 @@
 package com.project.eshop_refact.service;
 
-import com.project.eshop_refact.domain.*;
-import com.project.eshop_refact.dto.OrderDto;
-import com.project.eshop_refact.exception.BusinessException;
-import com.project.eshop_refact.exception.ErrorCode;
-import com.project.eshop_refact.repository.OrderRepository;
-import com.project.eshop_refact.repository.UserRepository;
-import com.project.eshop_refact.service.strategy.StockStrategy;
+import com.project.eshop_refact.domain.order.*;
+import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
+import com.project.eshop_refact.domain.user.UserRepository;
+import com.project.eshop_refact.domain.order.strategy.StockStrategy;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

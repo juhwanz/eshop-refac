@@ -1,9 +1,9 @@
 package com.project.eshop_refact.integration;
 
-import com.project.eshop_refact.config.QueryDslConfig;
-import com.project.eshop_refact.domain.Product;
-import com.project.eshop_refact.dto.ProductDto;
-import com.project.eshop_refact.repository.ProductRepository;
+import com.project.eshop_refact.global.config.QueryDslConfig;
+import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.product.ProductDto;
+import com.project.eshop_refact.domain.product.ProductRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

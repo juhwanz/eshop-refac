@@ -16,7 +16,7 @@ public class TestLatencyAspect {
 
     // 대상 메서드 실행 전, 후 모두 감싸는 어드바이스 -> 여기서는 실행 직전에 Thread.sleep을 걸기 위함.
     // ProductService의 decreaseStock으로 시작하는 모든 메서드에 적용
-    @Around("execution(* com.project.eshop_refact.service.ProductService.decreaseStock*(..))")
+    @Around("execution(* com.project.eshop_refact.domain.product.ProductService.decreaseStock*(..))")
     // -> joinPoint.preoceed() 호출 전. Thread,sleep -> TX 시작 상태로 시간 끓기 -> DB 커넥션과 락 점유 길게.
     // 와일드 카드 (*)를 써서 DB락과 Redis락 한 번에 잡음.
     // 인자값 -> 원래 실행되어야 할 비즈니스 로직 가리킴 -> joinPoint.proceed()를 호출해야 실제 로직 수행.

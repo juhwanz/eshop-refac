@@ -1,11 +1,12 @@
 package com.project.eshop_refact.service;
 
-import com.project.eshop_refact.config.JwtUtil;
-import com.project.eshop_refact.domain.User;
-import com.project.eshop_refact.domain.UserRoleEnum;
-import com.project.eshop_refact.dto.UserDto;
-import com.project.eshop_refact.exception.BusinessException;
-import com.project.eshop_refact.repository.UserRepository;
+import com.project.eshop_refact.domain.user.UserService;
+import com.project.eshop_refact.global.security.JwtUtil;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.domain.user.UserDto;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.domain.user.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
