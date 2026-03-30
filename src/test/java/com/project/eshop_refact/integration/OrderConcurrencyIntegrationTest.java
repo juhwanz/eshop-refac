@@ -1,15 +1,15 @@
 package com.project.eshop_refact.integration;
 
-import com.project.eshop_refact.facade.RedissonLockStockFacade;
-import com.project.eshop_refact.domain.Product;
-import com.project.eshop_refact.domain.User;
-import com.project.eshop_refact.domain.UserRoleEnum;
-import com.project.eshop_refact.repository.OrderRepository;
-import com.project.eshop_refact.repository.ProductRepository;
-import com.project.eshop_refact.repository.UserRepository;
-import com.project.eshop_refact.service.OrderService;
-import com.project.eshop_refact.service.queue.WaitingQueueService;
-import com.project.eshop_refact.service.strategy.PessimisticLockStrategy;
+import com.project.eshop_refact.domain.order.RedissonLockStockFacade;
+import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.domain.order.OrderRepository;
+import com.project.eshop_refact.domain.product.ProductRepository;
+import com.project.eshop_refact.domain.user.UserRepository;
+import com.project.eshop_refact.domain.order.OrderService;
+import com.project.eshop_refact.domain.queue.WaitingQueueService;
+import com.project.eshop_refact.domain.order.strategy.PessimisticLockStrategy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

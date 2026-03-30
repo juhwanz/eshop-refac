@@ -1,11 +1,15 @@
 package com.project.eshop_refact.integration;
 
-import com.project.eshop_refact.domain.*;
-import com.project.eshop_refact.dto.OrderDto;
-import com.project.eshop_refact.repository.OrderRepository;
-import com.project.eshop_refact.repository.ProductRepository;
-import com.project.eshop_refact.repository.UserRepository;
-import com.project.eshop_refact.service.OrderService;
+import com.project.eshop_refact.domain.order.Order;
+import com.project.eshop_refact.domain.order.OrderItem;
+import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.domain.order.OrderDto;
+import com.project.eshop_refact.domain.order.OrderRepository;
+import com.project.eshop_refact.domain.product.ProductRepository;
+import com.project.eshop_refact.domain.user.UserRepository;
+import com.project.eshop_refact.domain.order.OrderService;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;

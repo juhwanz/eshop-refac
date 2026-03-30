@@ -1,8 +1,8 @@
 package com.project.eshop_refact.stressTest;
 
-import com.project.eshop_refact.domain.User;
-import com.project.eshop_refact.domain.UserRoleEnum;
-import com.project.eshop_refact.repository.UserRepository;
+import com.project.eshop_refact.domain.user.User;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.domain.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

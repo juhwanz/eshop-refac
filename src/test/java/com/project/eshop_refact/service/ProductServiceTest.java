@@ -1,10 +1,11 @@
 package com.project.eshop_refact.service;
 
-import com.project.eshop_refact.domain.Product;
-import com.project.eshop_refact.dto.ProductDto;
-import com.project.eshop_refact.exception.BusinessException;
-import com.project.eshop_refact.exception.ErrorCode;
-import com.project.eshop_refact.repository.ProductRepository;
+import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.product.ProductService;
+import com.project.eshop_refact.domain.product.ProductDto;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
+import com.project.eshop_refact.domain.product.ProductRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

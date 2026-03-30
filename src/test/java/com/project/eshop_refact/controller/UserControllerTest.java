@@ -1,14 +1,15 @@
 package com.project.eshop_refact.controller;
 
-import com.project.eshop_refact.config.JwtUtil;
-import com.project.eshop_refact.config.SecurityConfig;
-import com.project.eshop_refact.dto.UserDto;
-import com.project.eshop_refact.exception.BusinessException;
-import com.project.eshop_refact.exception.ErrorCode;
-import com.project.eshop_refact.service.UserDetailsServiceImpl;
-import com.project.eshop_refact.service.UserService;
+import com.project.eshop_refact.domain.user.UserController;
+import com.project.eshop_refact.global.security.JwtUtil;
+import com.project.eshop_refact.global.security.SecurityConfig;
+import com.project.eshop_refact.domain.user.UserDto;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
+import com.project.eshop_refact.global.security.UserDetailsServiceImpl;
+import com.project.eshop_refact.domain.user.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.project.eshop_refact.service.queue.WaitingQueueService;
+import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
