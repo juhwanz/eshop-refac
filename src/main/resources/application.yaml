@@ -12,7 +12,7 @@ spring:
       max-lifetime: 1800000   # 커넥션 최대 생존 시간 ( DB 생존시간 보다 짧게)
     url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: root
-    password: ${DB_PASSWORD} # 환경변수 사용
+    password: ${DB_PASSWORD:1590} # 환경변수 사용
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   data:
@@ -30,16 +30,17 @@ spring:
         default_batch_fetch_size: 100
 
 jwt:
-  secret: ${JWT_SECRET_KEY} # 환경변수 사용
+  secret: ${JWT_SECRET_KEY:V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou}
   expiration-time: 86400000 # 24시간
 
 management:
   endpoints:
     web:
       exposure:
-        include: health    # 헬스 체크
-        # info, prometheus #  모니터링 엔드포인트 노출.
-        # /actuator/health로 답해 줌. -> 노출 최소.
+        include: health, metrics
+  endpoint: # health 상세정보 노출 설정 추가.
+    health:
+      show-details: always    # 단순 Up/Down이 아니라, DB, Redis 상태까지 출력
 
 app:
   order:

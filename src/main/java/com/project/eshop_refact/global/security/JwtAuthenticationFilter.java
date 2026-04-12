@@ -32,7 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // 공개 경로는 필터 건너뛰기
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request){
-        String[] excludePath = {"/api/users/signup", "/api/users/login", "/api/users/reissue", "/v3/api-docs", "/swagger-ui"};
+        String[] excludePath = {"/api/users/signup", "/api/users/login", "/api/users/reissue", "/v3/api-docs", "/swagger-ui", "/actuator"};
         String path = request.getRequestURI();
         return Arrays.stream(excludePath).anyMatch(path::startsWith);
     }
