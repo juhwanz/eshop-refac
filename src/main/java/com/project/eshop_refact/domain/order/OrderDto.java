@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-// Inner Static Class: DTO 응집도 향상 및 클래스 관리 효율화
 public class OrderDto {
 
     @Getter
@@ -36,12 +35,12 @@ public class OrderDto {
         private LocalDateTime orderDate;
         private List<OrderItemResponse> orderItems;
 
-        // Decoupling: 엔티티를 직접 노출하지 않고 DTO로 변환하여 API 스펙 변경 영향도 최소화
-        // Infinite Recursion: 양방향 연관관계로 인한 JSON 직렬화 무한 루프 방지
+        // Decoupling: 엔티티를 직접 노출하지 않고 DTO로 변환 -> API 스펙 변경 영향 최소화
         public Response(Order order) {
             this.orderId = order.getId();
             this.orderStatus = order.getStatus().name();
             this.orderDate = order.getOrderDate();
+            // Infinite Recursion: 양방향 연관관계로 인한 JSON 직렬화 무한 루프 방지
             this.orderItems = order.getOrderItems().stream()
                     .map(OrderItemResponse::new)
                     .collect(Collectors.toList());
@@ -56,8 +55,7 @@ public class OrderDto {
         private int orderPrice;
 
         public OrderItemResponse(OrderItem orderItem) {
-            // Performance Warning: 지연 로딩(Lazy Loading) 객체 접근 시 N+1 문제 발생 가능
-            // Solution: Repository 계층에서 Fetch Join을 통해 Product 엔티티를 미리 로드해야 함
+            // 지연 로딩 객체 접근 시 N+1 문제 발생 가능 -> Repository 계층에서 Fetch Join을 통해 Product 엔티티를 미리 로드해야 함
             this.productName = orderItem.getProduct().getName();
             this.count = orderItem.getCount();
             this.orderPrice = orderItem.getOrderPrice();
@@ -66,6 +64,7 @@ public class OrderDto {
 
     @Getter
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class CreateResponse {
         private Long orderId;
     }
