@@ -19,6 +19,7 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -57,6 +58,8 @@ class ProductControllerTest {
     UserDetailsServiceImpl userDetailsServiceImpl;
     @MockBean
     WaitingQueueService waitingQueueService;
+    @MockBean
+    RedisTemplate<String, String> redisTemplate;
 
     @Test
     @DisplayName("상품 등록 API - 201 Created 반환 검증")

@@ -26,6 +26,7 @@ import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -67,6 +68,8 @@ class OrderControllerTest {
     JwtUtil jwtUtil;
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
+    @MockBean
+    RedisTemplate<String, String> redisTemplate;
 
     private UserDetailsImpl testUserDetails;
 
