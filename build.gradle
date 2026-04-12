@@ -68,6 +68,9 @@ dependencies {
 	implementation 'net.javacrumbs.shedlock:shedlock-spring:5.13.0'
 	// ShedLock Redis Provider (Redis를 락 저장소로 사용하기 위함)
 	implementation 'net.javacrumbs.shedlock:shedlock-provider-redis-spring:5.13.0'
+
+	// 모니터링을 위한 Actuator
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 }
 
 // 기존 QueryDSL 설정 다 지우고 이걸로 대체
