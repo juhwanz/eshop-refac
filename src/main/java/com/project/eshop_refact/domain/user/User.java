@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 @Table(name = "users")  // DB 예약어 충돌 방지
 public class User {
 
+    @Enumerated(EnumType.STRING)
+    private UserStatus status = UserStatus.ACTIVE; // 기본값 : 활성화
+
 
     @Id     // PK
     @GeneratedValue(strategy = GenerationType.IDENTITY) // MySQL의 Auto Increment 기능 위임해 사용.
@@ -27,6 +30,9 @@ public class User {
     @Column(nullable = false, name = "user_role")
     @Enumerated(value = EnumType.STRING)    // 순서 변경에 안전한 String 저장 방식 채택
     private UserRoleEnum role;
+
+    @Column(nullable = false)
+    private int loginFailCount = 0;
 
     // 생성자는 Protected로 제한 (JPA용, 외부 직접 호출 방지)
     public User(String email, String password, String username, UserRoleEnum role) {
@@ -47,4 +53,18 @@ public class User {
         this.username = username;
         this.role = role;
     }
+
+    // 로그인 실패 5회 이상 잠금
+    public void handleLoginFailure(){
+        this.loginFailCount++;
+        if(this.loginFailCount >= 5){
+            this.status = UserStatus.LOCKED;
+        }
+    }
+
+    // 로그인 성공 시 실패 횟수 초기화
+    public void resetLoginFailCount(){
+        this.loginFailCount = 0;
+    }
+
 }

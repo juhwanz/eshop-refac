@@ -44,10 +44,21 @@ public class UserService {
         User user = userRepository.findByEmail(requestDto.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        //계정 상태 검증 로직
+        if(user.getStatus() == UserStatus.LOCKED){
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
+        if(user.getStatus() == UserStatus.DELETED){
+            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
+        }
         if(!passwordEncoder.matches(requestDto.getPassword(), user.getPassword())){
+            user.handleLoginFailure();
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
 
+        user.resetLoginFailCount();
+
+        // 토큰 발급 로직
         String accessToken = jwtUtil.createToken(user.getEmail(), user.getRole());
 
         String refreshToken = jwtUtil.createRefreshToken(user.getEmail());

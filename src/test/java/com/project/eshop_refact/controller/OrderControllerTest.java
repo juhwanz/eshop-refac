@@ -33,6 +33,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
@@ -57,6 +58,9 @@ class OrderControllerTest {
     @MockBean RedissonLockStockFacade redissonLockStockFacade;
     @MockBean
     WaitingQueueService waitingQueueService;
+
+    @MockBean
+    OrderIdempotencyService orderIdempotencyService;
 
     // Filter Chain 통과를 위한 껍데기들. -> 컨트롤러에 관련된 빈들만 로드 하지만, 자동으로 띄우는 애들도 있음.
     @MockBean
@@ -90,6 +94,7 @@ class OrderControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .with(csrf())
                         .with(user(testUserDetails))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -107,10 +112,13 @@ class OrderControllerTest {
         request.setProductId(100L);
         request.setCount(2);
 
-        given(redissonLockStockFacade.order(eq(1L), eq(100L), eq(2))).willReturn(500L);
+        OrderDto.CreateResponse responseDto = new OrderDto.CreateResponse(500L);
+        given(orderIdempotencyService.processOrderWithIdempotency(anyString(), eq(1L), eq(100L), eq(2)))
+                .willReturn(responseDto);
 
         // when & then
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .with(csrf()) // CSRF 토큰 필요 -> 없으면 시큐리티에서 403 Forbidden
                         .with(user(testUserDetails)) // 로그인한 유저 주입
                         .contentType(MediaType.APPLICATION_JSON)
@@ -130,10 +138,11 @@ class OrderControllerTest {
 
         //when & Then
         mockMvc.perform(post("/api/orders")
-                    .with(csrf())
-                    .with(user(testUserDetails))
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(request)))
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .with(csrf())
+                        .with(user(testUserDetails))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andDo(print());
     }
@@ -146,12 +155,12 @@ class OrderControllerTest {
         request.setProductId(100L);
         request.setCount(10); // 요청 수량
 
-        // Facade에서 재고 부족 예외를 던지도록 조작
-        given(redissonLockStockFacade.order(anyLong(), anyLong(), anyInt()))
+        // Mock 대상 수정 (Facade -> IdempotencyService)
+        given(orderIdempotencyService.processOrderWithIdempotency(anyString(), anyLong(), anyLong(), anyInt()))
                 .willThrow(new BusinessException(ErrorCode.OUT_OF_STOCK));
-
         // when & then
         mockMvc.perform(post("/api/orders")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .with(csrf())
                         .with(user(testUserDetails))
                         .contentType(MediaType.APPLICATION_JSON)
