@@ -11,6 +11,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -24,7 +25,7 @@ public class UserService {
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, String> redisTemplate;
 
-    @Transactional  // 쓰기 작업: 데이터 정합성 보장
+    @Transactional  // 쓰기 작업
     public void signup(UserDto.SignupRequest requestDto){
         String email = requestDto.getEmail();
 
@@ -39,7 +40,7 @@ public class UserService {
         userRepository.save(user);
     }
 
-
+    @Transactional
     public UserDto.TokenResponse login(UserDto.LoginRequest requestDto){
         User user = userRepository.findByEmail(requestDto.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -52,7 +53,7 @@ public class UserService {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
         }
         if(!passwordEncoder.matches(requestDto.getPassword(), user.getPassword())){
-            user.handleLoginFailure();
+            user.handleLoginFailure();  // 실패 횟수 증가
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
 
@@ -103,10 +104,20 @@ public class UserService {
     }
 
     @Transactional
-    public void logout(String email){
+    public void logout(String accessToken, String email){
         String redisKey = "RT:" + email;
-        if(Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))){
-            redisTemplate.delete(redisKey);
+        // 1. RT 삭제
+        redisTemplate.delete(redisKey);
+
+        // 2. AT 블랙리스트 등록 ( 남은 시간만 유지)
+        long expiration = jwtUtil.getExpiration(accessToken);
+        long now = System.currentTimeMillis();
+        long ttl = expiration - now;
+
+        if(ttl > 0){
+            redisTemplate.opsForValue().set(
+                    "BLACKLIST:" + accessToken, "logout", ttl, TimeUnit.MILLISECONDS
+            );
         }
     }
 }
