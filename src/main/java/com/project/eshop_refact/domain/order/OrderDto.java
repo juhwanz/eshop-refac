@@ -57,7 +57,7 @@ public class OrderDto {
 
         public OrderItemResponse(OrderItem orderItem) {
             // Performance Warning: 지연 로딩(Lazy Loading) 객체 접근 시 N+1 문제 발생 가능
-            // Solution: Repository 계층에서 Fetch Join을 통해 Product 엔티티를 미리 로드해야 함
+            // 현재 프로젝트는 기본 Batch Fetch 전략(default_batch_fetch_size)으로 N+1을 완화
             this.productName = orderItem.getProduct().getName();
             this.count = orderItem.getCount();
             this.orderPrice = orderItem.getOrderPrice();

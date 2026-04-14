@@ -57,7 +57,7 @@ public class OrderService {
         return orderPage.map(OrderDto.Response::new);
     }
 
-    // 락 흭득 전 어떤 상품에 락을 걸지 알아내기 위한 조회 메서드 : Redis 분산 락은 현재 상품 단위로 걸리게 설계 -> 취소 시 상품 ID를 동적으로 제공.
+    // 락 획득 전 어떤 상품에 락을 걸지 알아내기 위한 조회 메서드: 현재 상품 단위 락 설계에서 취소 대상 상품 ID를 제공
     public Long getProductIdByOrderId(Long orderId){
         Order order = orderRepository.findById(orderId)
                 .orElseThrow( () -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));

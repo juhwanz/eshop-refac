@@ -19,20 +19,20 @@ import java.util.concurrent.TimeUnit;
 public class RedissonLockStockFacade {
 
     private final RedissonClient redissonClient;
-    private final OrderService orderService; // 주문 서비스를 주입받음
-    private final WaitingQueueService waitingQueueService; // [추가] 주입 필요
+    private final OrderService orderService;
+    private final WaitingQueueService waitingQueueService;
 
     /**
      * 트랜잭션 범위 밖에서 락을 제어하여 DB 커넥션 점유 시간을 최소화함.
      * Pub/Sub 기반의 락 구현체로 Redis 부하를 줄임 (vs Spin Lock).
      */
 
-    // 락 획득 대기 시간 (Wait Time): 10초 -> 트래픽 폭주 시 대기열에서 너무 오래 기다리지 않고 Fail-Fast
+    // 락 획득 대기 시간 (Wait Time): 트래픽 폭주 시 무한 대기 대신 빠르게 실패하도록 제한
     @Value("${app.order.lock.wait-time:10}")
     private long waitTIme;
-    // 락 대기 시간 및 점유 시간 설정 -> 로직이 멈춰도 1초 뒤 강제 해제하여 데드락 방지)
+    // 락 점유 시간(Lease Time): 비정상 종료 시에도 자동 해제로 데드락 위험 완화
     @Value("${app.order.lock.lease-time:3}")
-    private long leaseTime; //비즈니스 로직 시간을 고려해 3초로 넉넉히 설정
+    private long leaseTime; // 비즈니스 로직 시간을 고려해 기본 3초
 
     public Long order(Long userId, Long productId, int count) {
         // Lock Key: 상품 단위로 락을 걸어 동시성 제어
@@ -40,7 +40,7 @@ public class RedissonLockStockFacade {
         Boolean lockAcquired = false;
 
         try {
-            // 락 획득 시도 (최대 10초 대기, 락 획득 후 1초 지나면 자동 해제)
+            // 락 획득 시도 (최대 대기 waitTime초, 획득 후 leaseTime초 지나면 자동 해제)
             lockAcquired = lock.tryLock(waitTIme, leaseTime, TimeUnit.SECONDS);
 
             if (!lockAcquired) {
@@ -58,7 +58,7 @@ public class RedissonLockStockFacade {
         } finally {
             // 3. 락 해제
             try{
-                // 락 흭득 했고, 현제 스레드가 점유 중일 때만 해제
+                // 락을 획득했고, 현재 스레드가 점유 중일 때만 해제
                 if(lockAcquired && lock.isHeldByCurrentThread()){
                     lock.unlock();
                 }

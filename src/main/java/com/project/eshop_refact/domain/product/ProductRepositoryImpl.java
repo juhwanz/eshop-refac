@@ -52,7 +52,7 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
     /**
      * Performance Tuning : No - OffSet 페이지 네이션
      * - Clusterd Index(PK)를 활용해 스캔 범위 최소화 (Where id < lastId)
-     * - Count Query 제거 -> 대용량 데이터 조회 시 일정한 응답 속도 (O(1)) 보장.
+     * - Count Query 제거 -> Deep Offset 대비 대용량 데이터 조회에서 지연 증가를 완화.
      */
     @Override
     public Slice<Product> searchNoOffset(Long lastProductId, ProductDto.SearchCondition condition, Pageable pageable) {

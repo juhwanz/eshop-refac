@@ -82,7 +82,7 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 토큰 재랍급
+        // 토큰 재발급
         String newAccessToken = jwtUtil.createToken(user.getEmail(), user.getRole());
         String newRefreshToken = jwtUtil.createRefreshToken(user.getEmail());
 

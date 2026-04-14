@@ -50,7 +50,7 @@ public class ProductService {
     }
 
     //No-Offset (Cursor-based) Pagination
-    // Scalability: 데이터 증가와 무관하게 일정한 조회 속도(O(1))를 보장하는 인덱스 스캔 방식
+    // Scalability: Deep Offset 방식 대비 대용량 데이터에서 안정적인 응답 지연을 기대할 수 있는 인덱스 스캔 방식
     public Slice<ProductDto.Response> searchNoOffset(Long lastProductId, ProductDto.SearchCondition condition, Pageable pageable) {
         return productRepository.searchNoOffset(lastProductId, condition, pageable)
                 .map(ProductDto.Response::new);
@@ -73,7 +73,7 @@ public class ProductService {
 
 
     /*
-        [본 상품 갯수 감소 로직 - Redis Distributed Lock]
+        [상품 재고 감소 로직 - Redis Distributed Lock]
         - 락 획득/해제 책임은 Facade(Redisson)에 위임하고, 본 메서드는 비즈니스 로직(차감)에 집중
      */
     @Transactional  // 쓰기
@@ -89,8 +89,7 @@ public class ProductService {
         return product;
     }
 
-    // Data Consistency: 가격 수정 시 캐시 정합성을 위해 Evict 수행
-    // Data Consistency: 가격 수정 시 캐시 정합성을 위해 Event 발행으로 변경
+    // Data Consistency: 가격 수정 시 캐시 정합성을 위해 이벤트 발행 후 커밋 시점에 캐시 무효화
     @Transactional  // 쓰기
     // @CacheEvict(value = "products", key = "#productId") // 롤백 위험이 있는 기존 방식 제거
     public ProductDto.Response updateProductPrice(Long productId, int newPrice) {
@@ -105,4 +104,3 @@ public class ProductService {
         return new ProductDto.Response(product);
     }
 }
-

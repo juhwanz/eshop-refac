@@ -31,7 +31,7 @@
 
 ### 1. Redis 분산 락으로 주문 정합성을 제어
 주문 생성은 `OrderController -> QueueInterceptor -> RedissonLockStockFacade -> OrderService` 흐름으로 처리됩니다.  
-락 획득/해제는 파사드에서 담당하고, 실제 주문 트랜잭션은 서비스에서 짧게 수행하도록 분리했습니다. 특히 트래픽 폭주로 분산 락 흭득에 실패한 유저의 경우, 대기열에서
+락 획득/해제는 파사드에서 담당하고, 실제 주문 트랜잭션은 서비스에서 짧게 수행하도록 분리했습니다. 특히 트래픽 폭주로 분산 락 획득에 실패한 유저의 경우, 대기열에서
 쫓아내지 않고 Active 상태를 유지시켜 즉각적인 재요청이 가능하도록 UX를 고려해 설계했습니다.
 
 ### 2. 대기열을 ZSet와 활성 토큰으로 분리
@@ -281,7 +281,7 @@ eshop-refact/
 ├── src/main/resources
 │   ├── application.yaml
 │   ├── application-secret.yaml
-│   └── application-sercret.example.yml
+│   └── application-secret.example.yml
 ├── src/test/java/com/project/eshop_refact
 │   ├── controller
 │   ├── domain
