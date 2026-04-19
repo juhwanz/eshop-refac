@@ -18,18 +18,22 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Arrays;
 
-// 요청당 1회 실행을 보장하여 불필요한 필터 중복 수행 방지
+/**
+ * JWT 기반 커스텀 인증 필터
+ * HTTP 요청의 Authorization 헤더에서 JWT를 추출하여 유효성, 토큰 타입,
+ * 블랙리스트 등록 여부를 검증한 후 SecurityContext에 인증 정보를 저장합니다.
+ */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsServiceImpl userDetailsServiceImpl;
-
-    //블랙 리스트 검증
     private final RedisTemplate<String, String> redisTemplate;
 
-    // 공개 경로는 필터 건너뛰기
+    /**
+     * 토큰 검증이 불필요한 화이트리스트 경로에 대해 필터 로직을 생략합니다.
+     */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request){
         String[] excludePath = {"/api/users/signup", "/api/users/login", "/api/users/reissue", "/v3/api-docs", "/swagger-ui", "/actuator"};
@@ -45,8 +49,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             Claims claims = jwtUtil.getClaimsIfValid(token);
 
-            // Access Token 타입 검증 (Refresh Token 사용 차단)
+            // Refresh Token이 인증(API 접근) 용도로 오용되는 것을 방지하기 위해 Access Token을 명시적으로 확인합니다.
             if (claims != null && "ACCESS".equals(claims.get("type"))) {
+
+                // Redis 블랙리스트를 조회하여 로그아웃 처리된 토큰의 탈취 및 재사용을 원천 차단합니다.
                 String isLogout = redisTemplate.opsForValue().get("BLACKLIST:" + token);
                 if(StringUtils.hasText(isLogout)){
                     response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "로그아웃된 토큰입니다");
@@ -59,7 +65,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
 
-                // 인증 세부 정보(IP, 세션 ID 등) 세팅
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }

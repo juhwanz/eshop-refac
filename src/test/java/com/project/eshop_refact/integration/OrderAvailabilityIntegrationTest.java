@@ -13,6 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.concurrent.CountDownLatch;
@@ -31,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.order.lock.wait-time=30" //테스트 타임아웃 방지를 위해 대기 시간을 30초로 연장
 })
 @ActiveProfiles("test") //test 프로필 활성화하여 TestLatencyAspect 동작 유도
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS) // 극단적 환경에 맞추기 위해
 public class OrderAvailabilityIntegrationTest {
 
     @Autowired
@@ -70,6 +72,7 @@ public class OrderAvailabilityIntegrationTest {
 
         // 검증 : Redis 분산 락 정합성, 조회 OK
         assertThat(redisResult.remainingStock()).isBetween(50,55);
+
         assertThat(redisResult.viewFailCount()).isEqualTo(0);
     }
 

@@ -9,7 +9,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// 관리 용이성을 위해 Inner Static Class로 DTO 그룹화
+/**
+ * 사용자 API 데이터 전송 객체(DTO)
+ * 관련 DTO들을 Inner Static Class로 묶어 도메인 응집도를 높이고 클래스 파일 남발을 방지합니다.
+ */
 public class UserDto {
 
     @Getter
@@ -49,7 +52,7 @@ public class UserDto {
 
 
     @Getter
-    @AllArgsConstructor // 응답 객체의 불변성 보장 (Setter 제거)
+    @AllArgsConstructor // 상태 변경(Setter)을 제한하여 응답 객체의 불변성을 보장합니다.
     public static class TokenResponse {
         private String accessToken;
         private String refreshToken;
