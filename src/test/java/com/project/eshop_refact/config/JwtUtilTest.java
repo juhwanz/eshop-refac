@@ -9,10 +9,12 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// Unit Test : 스프링 컨텍스트 없이 빠르게 시도 가능.
+/**
+ * JwtUtil 단위 테스트
+ * 스프링 컨텍스트 로드 없이 순수 자바 객체로 인스턴스를 생성하여,
+ * 토큰 발급, 파싱, 그리고 다양한 예외 상황(만료, 서명 위조, 형식 오류)에 대한 검증 로직을 고속으로 테스트합니다.
+ */
 class JwtUtilTest {
-    //@Spring Boot Test 띄우지 않고, new JwtUtil(..)로 객체 생성 테스트 -> 속도 빠름
-    // 원본 코드의 @Value는 스프링이 해석, 자바 문법적으로 무시. -> 테스트 코드에서  new ~가 가능.
 
     private JwtUtil jwtUtil;
 
@@ -22,6 +24,7 @@ class JwtUtilTest {
 
     @BeforeEach
     void setUp() {
+        // 외부 의존성(스프링 컨테이너) 없이 순수 객체로 테스트 환경 구성 및 암호화 키 초기화
         jwtUtil = new JwtUtil(ONE_HOUR_EXPIRATION_TIME, TEST_SECRET_KEY, TWO_WEEKS_EXPIRATION_TIME);
         jwtUtil.init(); //@PostConstruct 수동 호출. // 키 암호화.
     }
@@ -39,7 +42,6 @@ class JwtUtilTest {
 
         //Then
         assertThat(token).isNotBlank();
-        // 토큰 유효성 검증.
         assertThat(claims).isNotNull();
         assertThat(claims.getSubject()).isEqualTo(email);
         assertThat(claims.get("type")).isEqualTo("ACCESS");
@@ -49,7 +51,7 @@ class JwtUtilTest {
     @Test
     @DisplayName("실패 : 만료된 토큰")
     void validateExpiredToken() {
-        // Given : 유효시간 0 -> 즉시 만료
+        // Given: 유효시간을 0으로 설정하여 즉시 만료되는 토큰 환경 구성
         JwtUtil expiredJwtUtil = new JwtUtil(0L, TEST_SECRET_KEY, 0L);
         expiredJwtUtil.init();
 
@@ -60,14 +62,14 @@ class JwtUtilTest {
         //when
         Claims claims = expiredJwtUtil.getClaimsIfValid(expiredToken);
 
-        //Then : 만료 => null 반환
+        // Then: 만료된 토큰 파싱 시 예외 처리되어 null을 반환하는지 검증
         assertThat(claims).isNull();
     }
 
     @Test
     @DisplayName("실패 : 위조된 토큰 검증")
     void validateTamperedToken(){
-        // Given : 해커 객체
+        // Given: 다른 서명 키(Secret Key)를 사용하여 생성된 위조 토큰
         String hackSecretBase64 = "aGFja2VyLWtleS1tdXN0LWJlLXNlY3JldC1hbmQtbG9uZy1lbm91Z2gtMjU2Yml0cw==";
 
         JwtUtil hackJwtUtil = new JwtUtil(ONE_HOUR_EXPIRATION_TIME, hackSecretBase64, TWO_WEEKS_EXPIRATION_TIME);
@@ -75,23 +77,23 @@ class JwtUtilTest {
 
         String hackerToken = hackJwtUtil.createToken("hacker@test.com", UserRoleEnum.USER);
 
-        // When: 정상 서버(jwtUtil)에서 해커의 토큰 검증
+        // When: 정상 서버의 JwtUtil로 위조 토큰 파싱 시도
         Claims claims = jwtUtil.getClaimsIfValid(hackerToken);
 
-        // Then: 서명이 다르므로 null 반환
+        // Then: 서명 불일치로 검증 실패(null 반환)
         assertThat(claims).isNull();
     }
 
     @Test
     @DisplayName("실패 : 잘못된 형식 토큰")
     void failFormToken(){
-        // Given
+        // Given: JWT 구조(Header.Payload.Signature)가 손상된 문자열
         String garbageToken = "Bearer invalid.token.structure"; // 중간 띄어쓰기 밑 Bearer 그대로 넣음 -> 형식 에러 [MalformedJwtException)
 
         //When
         Claims claims = jwtUtil.getClaimsIfValid(garbageToken);
 
-        // Then: 파싱 에러로 null 반환
+        // Then: 파싱 에러 발생으로 검증 실패(null 반환)
         assertThat(claims).isNull();
     }
 
@@ -109,7 +111,9 @@ class JwtUtilTest {
         assertThat(refreshToken).isNotBlank();
         assertThat(claims).isNotNull();
         assertThat(claims.getSubject()).isEqualTo(email);
-        assertThat(claims.get("type")).isEqualTo("REFRESH"); // 타입 확인
-        assertThat(claims.get("auth")).isNull(); // Refresh Token은 권한 정보를 담지 않음
+        assertThat(claims.get("type")).isEqualTo("REFRESH");
+
+        // Refresh Token은 인가 용도가 아니므로 권한(auth) Claim을 포함하지 않음을 검증
+        assertThat(claims.get("auth")).isNull();
     }
 }

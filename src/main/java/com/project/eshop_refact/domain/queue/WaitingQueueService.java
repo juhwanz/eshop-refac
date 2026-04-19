@@ -10,7 +10,10 @@ import org.springframework.stereotype.Service;
 import java.util.Set;
 
 
-// [Traffic Throttling Service]
+/**
+ * 대기열 트래픽 제어 서비스
+ * Redis를 활용하여 트래픽 병목을 제어하고 사용자 진입 순서를 관리합니다.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,7 +29,7 @@ public class WaitingQueueService {
 
     public Long registerQueue(Long userId){
         long unixTimestamp = System.currentTimeMillis();
-        // Scoring: Unix Timestamp를 Score로 사용하여 FIFO 정렬 보장
+        // Unix Timestamp를 Score로 사용하여 대기열의 FIFO(First-In-First-Out) 정렬을 보장합니다.
         redisTemplate.opsForZSet().add(WAITING_KEY, userId.toString(), unixTimestamp);
 
         return getRank(userId);
@@ -40,11 +43,14 @@ public class WaitingQueueService {
         return rank + 1;
     }
 
-    // Optimization: Bulk Operation 성능 최적화 (Network RTT & Memory Safety)
+    /**
+     * 대기열 사용자 진입 허용 처리
+     * 대규모 트래픽 환경에서 애플리케이션 메모리 부하(OOM)를 방지하기 위해 Chunk 단위로 분할 처리하며,
+     * Redis 파이프라인(Pipelining)을 적용하여 다중 명령어로 인한 네트워크 RTT를 최소화합니다.
+     */
     public void allowUsers(long count) {
         long processed = 0;
 
-        // Heap Memory Safety:  OOM 방지를 위해 Chunk 단위 처리
         while(processed < count){
             long fetchCount = Math.min(CHUNK_SIZE, count - processed);
             Set<String> users = redisTemplate.opsForZSet().range(WAITING_KEY, 0 , fetchCount - 1);
@@ -53,7 +59,6 @@ public class WaitingQueueService {
                 break;
             }
 
-            // Pipeline: 다수의 Redis 명령(ZRem, SetEx)을 단일 네트워크 패킷으로 전송하여 RTT 최소화
             redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
                 RedisSerializer<String> stringSerializer = redisTemplate.getStringSerializer();
                 byte[] keyWaiting = stringSerializer.serialize(WAITING_KEY);
@@ -62,9 +67,7 @@ public class WaitingQueueService {
                 for(String userId : users){
                     byte[] keyActive = stringSerializer.serialize(ACTIVE_KEY_PREFIX + userId);
                     byte[] valueId = stringSerializer.serialize(userId);
-                    // 1. 개별 유저 키에 TTL 600초(10분) 설정하여 발급
                     connection.setEx(keyActive, ACTIVE_TTL_SECONDS, valueTrue);
-                    // 2. 대기열에서 제거
                     connection.zRem(keyWaiting, valueId);
                 }
                 return null;
@@ -75,13 +78,11 @@ public class WaitingQueueService {
         }
     }
 
-    // Interceptor에서 매 요청마다 호출되므로 O(1) 복잡도 필수
-    // 수정: Set 조회가 아닌 개별 키 존재 여부(hasKey)로 확인
+    // Interceptor에서 매 API 요청마다 호출되므로, 시스템 부하를 막기 위해 O(1) 시간 복잡도의 단일 키 조회 방식을 사용합니다.
     public boolean isAllowed(Long userId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(ACTIVE_KEY_PREFIX + userId));
     }
 
-    // 수정: Set에서 제거가 아닌 개별 키 삭제(delete)로 처리
     public void removeUser(Long userId) {
         redisTemplate.delete(ACTIVE_KEY_PREFIX + userId);
     }
