@@ -21,7 +21,7 @@ public class OrderDto {
         @NotNull(message = "상품 ID는 필수입니다.")
         private Long productId;
 
-        // Validation: 비즈니스 규칙(최소 수량)에 따른 입력값 검증 및 Fail-Fast 적용
+        // 최소 주문 수량 검증
         @Min(value = 1, message = "주문 수량은 최소 1개 이상이어야 합니다.")
         private int count;
     }
@@ -31,11 +31,13 @@ public class OrderDto {
     public static class Response {
 
         private Long orderId;
-        private String orderStatus; // 주문 상태
+        private String orderStatus;
         private LocalDateTime orderDate;
         private List<OrderItemResponse> orderItems;
 
-        // Decoupling: 엔티티를 직접 노출하지 않고 DTO로 변환 -> API 스펙 변경 영향 최소화
+        /**
+         * 엔티티 직접 노출을 방지하여 도메인을 보호하고 API 스펙을 유지합니다.
+         */
         public Response(Order order) {
             this.orderId = order.getId();
             this.orderStatus = order.getStatus().name();
@@ -55,7 +57,7 @@ public class OrderDto {
         private int orderPrice;
 
         public OrderItemResponse(OrderItem orderItem) {
-            // 지연 로딩 객체 접근 시 N+1 문제 발생 가능 -> Repository 계층에서 Fetch Join을 통해 Product 엔티티를 미리 로드해야 함
+            // 주의: N+1 문제를 방지하기 위해 상위 계층(Repository)에서 Product 엔티티를 Fetch Join으로 미리 로드해야 합니다.
             this.productName = orderItem.getProduct().getName();
             this.count = orderItem.getCount();
             this.orderPrice = orderItem.getOrderPrice();

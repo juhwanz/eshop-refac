@@ -11,6 +11,11 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.Collections;
 
+/**
+ * Spring Security 인증 객체 어댑터
+ * 핵심 도메인인 User 엔티티를 Spring Security의 UserDetails 규격에 맞춰 래핑하며,
+ * 회원의 권한 정보와 계정 활성화 상태를 프레임워크에 전달합니다.
+ */
 @Getter
 public class UserDetailsImpl implements UserDetails {
 
@@ -26,7 +31,7 @@ public class UserDetailsImpl implements UserDetails {
         UserRoleEnum role = user.getRole();
         String authority = role.name();
 
-        // "ROLE_" 접두사는 Spring Security의 hasRole() 등에서 사용하는 컨벤션
+        // Spring Security의 권한 검증(hasRole 등) 기본 컨벤션을 충족하기 위해 'ROLE_' 접두사를 추가합니다.
         return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + authority));
     }
 

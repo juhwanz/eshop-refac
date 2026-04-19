@@ -17,7 +17,8 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true) // 조회 성능 최적화 (Dirty Checking 비용 절감)
+// 불필요한 Dirty Checking을 방지하여 전반적인 조회 성능을 최적화합니다.
+@Transactional(readOnly = true)
 public class UserService {
 
     private final UserRepository userRepository;
@@ -32,7 +33,7 @@ public class UserService {
         Optional<User> checkUser = userRepository.findByEmail(email);
         if(checkUser.isPresent()) throw new BusinessException(ErrorCode.EMAIL_DUPLICATION);
 
-        // 보안: 단방향 해싱 알고리즘(BCrypt) 적용
+        // 비밀번호는 단방향 해시 함수를 통해 암호화하여 저장합니다.
         String password = passwordEncoder.encode(requestDto.getPassword());
         UserRoleEnum role = UserRoleEnum.USER;
 
@@ -45,7 +46,6 @@ public class UserService {
         User user = userRepository.findByEmail(requestDto.getEmail())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        //계정 상태 검증 로직
         if(user.getStatus() == UserStatus.LOCKED){
             throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
         }
@@ -59,12 +59,10 @@ public class UserService {
 
         user.resetLoginFailCount();
 
-        // 토큰 발급 로직
         String accessToken = jwtUtil.createToken(user.getEmail(), user.getRole());
-
         String refreshToken = jwtUtil.createRefreshToken(user.getEmail());
 
-        // Refresh Token 저장소로 Redis 채택 (TTL 설정으로 생명주기 자동 관리)
+        // Refresh Token은 Redis에 저장하여 TTL 기반으로 생명주기를 안전하게 관리합니다
         redisTemplate.opsForValue().set(
                 "RT:" + user.getEmail(), refreshToken, 14, TimeUnit.DAYS
         );
@@ -76,7 +74,6 @@ public class UserService {
     public UserDto.TokenResponse reissue(UserDto.RefreshRequest requestDto){
         String refreshToken = requestDto.getRefreshToken();
 
-        // 검증
         Claims claims = jwtUtil.getClaimsIfValid(refreshToken);
         if(claims == null || !claims.get("type").equals("REFRESH") ){
             throw new BusinessException(ErrorCode.INVALID_TOKEN);
@@ -85,7 +82,7 @@ public class UserService {
         String email = claims.getSubject();
         String redisKey = "RT:" + email;
 
-        // Redis 토큰과 비교(탈취 방지)
+        // Redis에 저장된 원본 토큰과 비교하여 토큰 탈취 및 변조를 방지합니다.
         String savedToken = redisTemplate.opsForValue().get(redisKey);
         if(savedToken == null || !savedToken.equals(refreshToken)){
             throw new BusinessException(ErrorCode.INVALID_TOKEN);
@@ -94,7 +91,6 @@ public class UserService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 토큰 재랍급
         String newAccessToken = jwtUtil.createToken(user.getEmail(), user.getRole());
         String newRefreshToken = jwtUtil.createRefreshToken(user.getEmail());
 
@@ -106,10 +102,9 @@ public class UserService {
     @Transactional
     public void logout(String accessToken, String email){
         String redisKey = "RT:" + email;
-        // 1. RT 삭제
+
         redisTemplate.delete(redisKey);
 
-        // 2. AT 블랙리스트 등록 ( 남은 시간만 유지)
         long expiration = jwtUtil.getExpiration(accessToken);
         long now = System.currentTimeMillis();
         long ttl = expiration - now;

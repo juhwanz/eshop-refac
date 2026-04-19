@@ -11,13 +11,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class SwaggerConfig {
 
-    // API 명세화 및 테스트 환경
+    /**
+     * Swagger API 문서 자동화 설정
+     * 프론트엔드 개발자와의 원활한 협업을 위해 API 명세서를 제공하며,
+     * Swagger UI 내에서 JWT(Bearer Token) 기반의 인증 테스트가 즉각적으로 가능하도록 Security Scheme을 구성합니다.
+     */
     @Bean
     public OpenAPI openAPI() {
         String jwtSchemeName = "jwtAuth";
         SecurityRequirement securityRequirement = new SecurityRequirement().addList(jwtSchemeName);
 
-        // JWT Security Scheme 설정: 인증이 필요한 API의 즉각적인 테스트 지원 (Bearer Token)
         Components components = new Components()
                 .addSecuritySchemes(jwtSchemeName, new SecurityScheme()
                         .name(jwtSchemeName)

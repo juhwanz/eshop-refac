@@ -4,18 +4,19 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
-// Cohesion: 상품 관련 DTO를 Inner Static Class로 그룹화하여 관리 효율성 증대
+/**
+ * 상품 API 데이터 전송 객체(DTO)
+ * 관련 DTO들을 Inner Static Class로 묶어 응집도를 높이고 클래스 파일 남발을 방지합니다.
+ */
 public class ProductDto {
 
     @Getter
     @Setter
     public static class RegisterRequest {
 
-        // Validation: @Valid 어노테이션을 통한 입력값 검증 및 Fail-Fast 전략 구현
         @NotBlank(message = "상품명은 필수입니다.")
         private String name;
 
-        // Domain Rule: 비즈니스 최소 가격 정책 반영
         @Min(value = 100, message = "가격은 최소 100원 이상")
         private int price;
 
@@ -31,12 +32,14 @@ public class ProductDto {
         private Integer minPrice;
         private Integer maxPrice;
 
-        // 빈 문자열은 null로 처리하여 검색 조건에서 제외
+        /**
+         * 클라이언트에서 넘어온 빈 문자열("")을 null로 치환하여,
+         * 동적 쿼리(Dynamic Query) 생성 시 불필요한 검색 조건이 포함되는 것을 방지합니다.
+         */
         public void setName(String name) {
             this.name = (name != null && name.trim().isEmpty()) ? null : name;
         }
 
-        //  가격 범위 유효성 검증
         public boolean isValidPriceRange() {
             if (minPrice != null && maxPrice != null) {
                 return minPrice <= maxPrice;
@@ -54,8 +57,9 @@ public class ProductDto {
         private int price;
         private int stockQuantity;
 
-        // Decoupling: 엔티티의 변경이 API 스펙에 영향을 주지 않도록 계층 분리
-        // View Logic: 화면에 필요한 데이터만 선별하여 불필요한 정보 노출 방지
+        /**
+         * Product 엔티티를 API 응답 스펙으로 변환하여, 엔티티의 변경이 클라이언트에 미치는 파급 효과를 차단합니다.
+         */
         public Response(Product product) {
             this.id = product.getId();
             this.name = product.getName();
