@@ -24,9 +24,8 @@ public class OrderService {
     private final StockStrategy stockStrategy;
 
     /**
-     * [Order Processing]
-     * Atomic Transaction: 재고 차감과 주문 생성의 원자성 보장 (All or Nothing)
-     * Strategy Pattern: 동시성 제어 로직을 위임하여 비즈니스 로직과 기술적 관심사(Locking) 분리
+     * 주문 생성
+     * 동시성 제어(Locking) 책임을 Strategy 계층에 위임하여 비즈니스 로직과 기술적 관심사를 분리합니다.
      */
     @Transactional
     public Long order(Long userId, Long productId, int count){
@@ -34,10 +33,8 @@ public class OrderService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 재고 감소 (strategy 객체에 위임)
         Product product = stockStrategy.decrease(productId, count);
 
-        // DDD: 도메인 객체의 비즈니스 메서드를 통해 객체 생성 및 검증
         OrderItem orderItem = OrderItem.createOrderItem(product, count);
         Order order = Order.createOrder(user, List.of(orderItem));
 
@@ -45,26 +42,30 @@ public class OrderService {
         return order.getId();
     }
 
-    //'default_batch_fetch_size' 설정을 통해 1:N 관계 조회 시 N+1 문제를 In-query(IN절)로 해결
-    // Pagination Safety: 컬렉션 Fetch Join 시 발생하는 메모리 페이징(OutOfMemory) 이슈 원천 차단
+    /**
+     * 주문 목록 조회
+     * default_batch_fetch_size 설정을 활용하여 1:N 관계 조회 시 발생하는 N+1 문제를 방지하고,
+     * 컬렉션 Fetch Join 페이징 시 발생할 수 있는 메모리 부하(OOM)를 구조적으로 회피합니다.
+     */
     public Page<OrderDto.Response> getOrders(Long userId, Pageable pageable){
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // Batch Size 설정을 통해 N+1 문제 없이 조회
         Page<Order> orderPage = orderRepository.findAllByUser(user, pageable);
 
         return orderPage.map(OrderDto.Response::new);
     }
 
-    // 락 흭득 전 어떤 상품에 락을 걸지 알아내기 위한 조회 메서드 : Redis 분산 락은 현재 상품 단위로 걸리게 설계 -> 취소 시 상품 ID를 동적으로 제공.
+    /**
+     * 주문 취소 시 분산 락 획득 기준이 되는 상품 ID 조회
+     */
     public Long getProductIdByOrderId(Long orderId){
         Order order = orderRepository.findById(orderId)
                 .orElseThrow( () -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
-        // 첫 번째 상품 ID 반환
         return order.getOrderItems().get(0).getProduct().getId();
     }
+
     @Transactional
     public void cancelOrder(Long orderId, Long userId) {
         Order order = orderRepository.findById(orderId)
@@ -73,6 +74,6 @@ public class OrderService {
         if(!order.getUser().getId().equals(userId)){
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
-        order.cancel(); // 도메인 로직 호출 (재고 복구)
+        order.cancel();
     }
 }

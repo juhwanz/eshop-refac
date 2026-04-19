@@ -15,10 +15,12 @@ import java.util.Optional;
 @Repository
 public interface ProductRepository extends JpaRepository<Product, Long>, ProductRepositoryCustom {
 
-    // 동시성 제어 : 재고 수정 시 Race Condition 방지를 위해 비관적 락 (Select .. for Update) 적용
-    // Stability : 락 흭득 시간을 설정해 무한 대기 방지 및 Fail - Fast 구현
+    /**
+     * 비관적 락(Pessimistic Lock)을 적용한 상품 단건 조회
+     * 동시성 환경에서 재고 수정 시 발생할 수 있는 데이터 정합성 문제를 방지합니다.
+     * 데드락(Deadlock) 및 스레드 무한 대기를 방지하기 위해 락 획득 최대 대기 시간을 10초로 제한합니다.
+     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    //DB 설정이 씹혀도, JPA 레벨에서 강제로 10초(10000ms) 대기를 명령합니다.
     @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "10000")})
     @Query("select p from Product p where p.id = :id")
     Optional<Product> findByIdWithPessimisticLock(@Param("id") Long id);
