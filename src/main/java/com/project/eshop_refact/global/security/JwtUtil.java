@@ -76,4 +76,14 @@ public class JwtUtil {
         }
         return null; // 검증 실패 시 null 반환
     }
+
+    public long getExpiration(String token){
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .getExpiration()
+                .getTime();
+    }
 }
