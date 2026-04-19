@@ -20,10 +20,8 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     /**
-     * Legacy Strategy : Off-Set 페이지네이션
-     * - Deep Pagination 시 'Read and Drop' 방식 -> 성능 저하 O(N)
-     * - 관리자 페이지 등 특정 페이지 이동이 필수적인 요구사항을 위해 유지.
-     *
+     * 상품 동적 검색 (Offset 기반 페이징)
+     * 특정 페이지로의 직접 이동이 필수적인 관리자 페이지 등의 요구사항을 위해 사용합니다.
      */
     @Override
     public Page<Product> search(ProductDto.SearchCondition condition, Pageable pageable) {
@@ -45,14 +43,13 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                         priceBetween(condition.getMinPrice(), condition.getMaxPrice())
                 );
 
-        // 페이지 사이즈보다 컨텐츠가 적을 경우 Count Query 생략.
+        // 조회된 데이터가 페이지 사이즈보다 적을 경우, 불필요한 Count 쿼리를 생략하여 성능을 최적화합니다.
         return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
     }
 
     /**
-     * Performance Tuning : No - OffSet 페이지 네이션
-     * - Clusterd Index(PK)를 활용해 스캔 범위 최소화 (Where id < lastId)
-     * - Count Query 제거 -> 대용량 데이터 조회 시 일정한 응답 속도 (O(1)) 보장.
+     * 상품 무한 스크롤 검색 (No-Offset 기반 페이징)
+     * 클러스터링 인덱스(PK)를 활용해 스캔 범위를 최소화하여 대용량 데이터 조회 시 일정한 응답 속도를 보장합니다.
      */
     @Override
     public Slice<Product> searchNoOffset(Long lastProductId, ProductDto.SearchCondition condition, Pageable pageable) {
@@ -64,6 +61,7 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                         priceBetween(condition.getMinPrice(), condition.getMaxPrice())
                 )
                 .orderBy(product.id.desc())
+                // Slice 구현을 위해 요청된 페이지 사이즈보다 1건 더 조회하여 다음 데이터 존재 여부를 확인합니다.
                 .limit(pageable.getPageSize() + 1) // 다음 페이지 있는지 확인하려고 +1 조회
                 .fetch();
 
@@ -76,7 +74,8 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
         return new SliceImpl<>(content, pageable, hasNext);
     }
 
-    // Dynamic Query: BooleanExpression을 활용한 조건절 모듈화 및 재사용성 증대
+    // --- Dynamic Query BooleanExpressions ---
+
     private BooleanExpression ltProductId(Long lastProductId) {
         return lastProductId == null ? null : product.id.lt(lastProductId);
     }

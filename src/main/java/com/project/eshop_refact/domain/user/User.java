@@ -4,21 +4,24 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * 사용자(User) 도메인 엔티티
+ */
 @Entity
 @Getter
-@NoArgsConstructor      // JPA 리플렉션을 위한 기본 생성자 (Protected 권장)
-@Table(name = "users")  // DB 예약어 충돌 방지
+@NoArgsConstructor
+@Table(name = "users")
 public class User {
 
     @Enumerated(EnumType.STRING)
-    private UserStatus status = UserStatus.ACTIVE; // 기본값 : 활성화
+    private UserStatus status = UserStatus.ACTIVE;
 
 
     @Id     // PK
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // MySQL의 Auto Increment 기능 위임해 사용.
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true) // 애플리케이션 레벨 + DB 스키마에도 유니크 제약조건 반영.
+    @Column(nullable = false, unique = true)
     private String email;
 
     @Column(nullable = false)
@@ -28,13 +31,12 @@ public class User {
     private String username;
 
     @Column(nullable = false, name = "user_role")
-    @Enumerated(value = EnumType.STRING)    // 순서 변경에 안전한 String 저장 방식 채택
+    @Enumerated(value = EnumType.STRING)
     private UserRoleEnum role;
 
     @Column(nullable = false)
     private int loginFailCount = 0;
 
-    // 생성자는 Protected로 제한 (JPA용, 외부 직접 호출 방지)
     public User(String email, String password, String username, UserRoleEnum role) {
         if(email == null || email.isBlank()){
             throw new IllegalArgumentException("이메일은 필수입니다.");
@@ -54,7 +56,10 @@ public class User {
         this.role = role;
     }
 
-    // 로그인 실패 5회 이상 잠금
+    /**
+     * 로그인 실패 처리
+     * 연속 5회 이상 로그인 실패 시, 사용자 상태를 잠금(LOCKED)으로 전환하여 보안을 유지합니다.
+     */
     public void handleLoginFailure(){
         this.loginFailCount++;
         if(this.loginFailCount >= 5){
@@ -62,7 +67,9 @@ public class User {
         }
     }
 
-    // 로그인 성공 시 실패 횟수 초기화
+    /**
+     * 로그인 성공 시 누적된 실패 횟수를 초기화합니다.
+     */
     public void resetLoginFailCount(){
         this.loginFailCount = 0;
     }
