@@ -12,6 +12,10 @@ import java.security.Key;
 import java.util.Base64;
 import java.util.Date;
 
+/**
+ * JWT 생성, 파싱 및 유효성 검증을 담당하는 유틸리티 클래스
+ * Access Token과 Refresh Token의 발급과 생명주기를 관리합니다.
+ */
 @Slf4j
 @Component
 public class JwtUtil {
@@ -37,12 +41,12 @@ public class JwtUtil {
         this.key = Keys.hmacShaKeyFor(keyBytes);
     }
 
-    // Access Token 생성
+    // API 인가(Authorization) 처리를 위한 Access Token 발급
     public String createToken(String username, UserRoleEnum role){
         return createJwt(username, role.name(), "ACCESS", expirationTime);
     }
 
-    // Refresh Token 생성
+    // Access Token 갱신을 위한 Refresh Token 발급 (권한 Claim 제외)
     public String createRefreshToken(String username){
         return createJwt(username, null, "REFRESH", refreshTokenTime);
     }
@@ -59,14 +63,18 @@ public class JwtUtil {
         return builder.compact();
     }
 
-    // 검증 및 Claims 한 번에 추출
+    /**
+     * 토큰 서명 검증 및 Claims 추출
+     * 예외 발생 시 로깅만 수행하고 null을 반환하여, 호출부(Filter)가 예외 처리가 아닌 흐름 제어에 집중하도록 설계했습니다.
+     */
     public Claims getClaimsIfValid(String token){
         try {
             return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
         } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
             log.error("잘못된 JWT 서명입니다. (위조 가능성) {}", e.getMessage());
         } catch (ExpiredJwtException e) {
-            log.warn("만료된 JWT 토큰입니다. {}", e.getMessage()); // 만료는 흔한 일이므로 Warn 레벨
+            // 토큰 만료는 정상적인 인증 흐름의 일부이므로 WARN 레벨로 로깅하여 에러 트래킹 노이즈를 방지합니다.
+            log.warn("만료된 JWT 토큰입니다. {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
             log.error("지원되지 않는 JWT 토큰입니다. {}", e.getMessage());
         } catch (IllegalArgumentException e) {
@@ -74,7 +82,7 @@ public class JwtUtil {
         } catch (io.jsonwebtoken.io.DecodingException e) {
             log.error("JWT 디코딩 실패 (형식 오류): {}", e.getMessage());
         }
-        return null; // 검증 실패 시 null 반환
+        return null;
     }
 
     public long getExpiration(String token){

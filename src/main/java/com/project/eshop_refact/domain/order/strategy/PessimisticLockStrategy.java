@@ -12,8 +12,10 @@ public class PessimisticLockStrategy implements StockStrategy {
 
     private final ProductService productService;
 
-    // S충돌이 빈번한 환경에서 완벽한 데이터 정합성 보장 (SELECT ... FOR UPDATE)
-    // 락 대기 시간으로 인한 DB Connection Pool 점유율 상승 및 장애 전파 가능성 존재
+    /**
+     * 동시성 충돌이 빈번한 환경을 위한 비관적 락 기반 재고 차감 전략
+     * 데이터 정합성을 강하게 유지하지만, 락 대기로 인한 DB 커넥션 풀 점유 및 병목 가능성을 고려해야 합니다.
+     */
     @Override
     public Product decrease(Long productId, int quantity) {
         return productService.decreaseStock(productId, quantity);

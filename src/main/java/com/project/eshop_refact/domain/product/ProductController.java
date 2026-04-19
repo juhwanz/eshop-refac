@@ -18,19 +18,27 @@ public class ProductController {
 
     private final ProductService productService;
 
-    // 상품 등록: @Valid를 통한 입력값 검증 및 Fail-Fast 적용
+    /**
+     * 상품 등록 API
+     */
     @PostMapping
     public ResponseEntity<ApiResponse<Long>> registerProduct(@RequestBody @Valid ProductDto.RegisterRequest requestDto){
         Long productId = productService.registerProduct(requestDto);
         return ResponseEntity.status(201).body(ApiResponse.success("상품등록 성공", productId));
     }
 
+    /**
+     * 상품 단건 조회 API
+     */
     @GetMapping("/{productId}")
     public ResponseEntity<ApiResponse<ProductDto.Response>> getProductById(@PathVariable Long productId) {
         return ResponseEntity.ok(ApiResponse.success("상품 조회 성공", productService.getProductById(productId)));
     }
 
-    // Offset Paging: 전통적인 게시판 형태의 페이지네이션 (Count Query 발생)
+    /**
+     * 상품 검색 API (Offset Paging)
+     * 전통적인 게시판 형태의 페이지네이션을 지원합니다.
+     */
     @GetMapping("/search")
     public ResponseEntity<ApiResponse<Page<ProductDto.Response>>> searchProducts(
             @ModelAttribute ProductDto.SearchCondition condition,
@@ -39,8 +47,11 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success("상품 검색 성공",productService.search(condition,pageable)));
     }
 
-    // No-Offset Paging: 대용량 데이터 조회 성능 최적화 (Count Query 제거, 인덱스 활용)
-    // Infinite Scroll 구현에 적합한 Slice 반환 타입 채택
+    /**
+     * 상품 무한 스크롤 검색 API (No-Offset Paging)
+     * 대용량 데이터 조회 시 발생하는 카운트(Count) 쿼리 병목을 제거하고,
+     * 클러스터링 인덱스(PK)를 활용하여 조회 성능을 획기적으로 최적화합니다.
+     */
     @GetMapping("/search/no-offset")
     public ResponseEntity<ApiResponse<Slice<ProductDto.Response>>> searchNoOffset(
             @RequestParam(required = false) Long lastProductId,
@@ -50,7 +61,9 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success("상품 스크롤 검색 성공", productService.searchNoOffset(lastProductId, condition, pageable)));
     }
 
-    // 가격 수정 API
+    /**
+     * 상품 가격 수정 API
+     */
     @PatchMapping("/{productId}/price")
     public ResponseEntity<ApiResponse<ProductDto.Response>> updateProductPrice(
             @PathVariable Long productId,

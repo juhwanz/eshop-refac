@@ -6,10 +6,13 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * 상품(Product) 도메인 엔티티
+ */
 @Entity
 @Getter
-@NoArgsConstructor  // JPA 리플렉션(Reflection) 지원
-@Table(name = "products") // DB 예약어 충돌 방지
+@NoArgsConstructor
+@Table(name = "products")
 public class Product {
 
     @Id
@@ -25,20 +28,23 @@ public class Product {
     @Column(nullable = false)
     private int stockQuantity;
 
-    // 생성 시점부터 유효한 상태를 보장하기 위해 생성자 주입 강제 -> 무분별한 setter 방지.
     public Product(String name, int price, int stockQuantity) {
         this.name = name;
         this.price = price;
         this.stockQuantity = stockQuantity;
     }
 
-    // DDD (Rich Domain Model): 데이터와 로직을 응집시켜 캡슐화(Encapsulation) 강화
-    // Setter를 닫고 비즈니스 의도가 명확한 메서드를 통해서만 상태 변경 허용
+    /**
+     * 재고 증가
+     */
     public void addStock(int quantity) {
         this.stockQuantity += quantity;
     }
 
-    // Validation: 도메인 규칙(재고 < 0 불가) 검증을 엔티티 내부에서 수행하여 무결성 보호
+    /**
+     * 재고 차감
+     * 도메인 규칙에 따라 차감 후 잔여 재고가 0 미만이 될 경우 비즈니스 예외를 발생시킵니다.
+     */
     public void removeStock(int quantity) {
         int restStock = this.stockQuantity - quantity;
         if (restStock < 0) {
@@ -47,6 +53,9 @@ public class Product {
         this.stockQuantity = restStock;
     }
 
+    /**
+     * 상품 가격 업데이트
+     */
     public void updatePrice(int newPrice){
         if (newPrice < 0) {
             throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE);

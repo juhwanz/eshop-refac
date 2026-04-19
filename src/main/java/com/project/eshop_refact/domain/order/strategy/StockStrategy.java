@@ -2,8 +2,10 @@ package com.project.eshop_refact.domain.order.strategy;
 
 import com.project.eshop_refact.domain.product.Product;
 
-// OCP (Open-Closed Principle): 비즈니스 로직 수정 없이 새로운 동시성 제어 전략(Redis, Kafka 등) 확장 가능
-// Abstraction: 구체적인 락 구현체(Implementation)와의 결합도를 낮추어 유지보수성 향상 (Loose Coupling)
+/**
+ * 재고 차감 전략 인터페이스
+ * 상품 특성 및 동시성 환경에 맞춘 다양한 차감 알고리즘을 유연하게 교체하기 위해 사용합니다.
+ */
 public interface StockStrategy {
     Product decrease(Long productId, int quantity);
 }

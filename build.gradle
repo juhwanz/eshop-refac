@@ -71,6 +71,10 @@ dependencies {
 
 	// 모니터링을 위한 Actuator
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+	//Flyway
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 }
 
 // 기존 QueryDSL 설정 다 지우고 이걸로 대체
