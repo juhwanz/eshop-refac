@@ -14,7 +14,7 @@ spring:
       max-lifetime: 1800000
     url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
     username: root
-    password: ${DB_PASSWORD:1590}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   data:
@@ -37,7 +37,7 @@ spring:
         default_batch_fetch_size: 100
 
 jwt:
-  secret: ${JWT_SECRET_KEY:V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou}
+  secret: ${JWT_SECRET_KEY}
   expiration-time: 86400000 # 24시간
 
 management:

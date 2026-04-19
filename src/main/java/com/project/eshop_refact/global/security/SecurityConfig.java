@@ -50,7 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/users/signup", "/api/users/login", "/api/users/reissue").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/orders/queue").permitAll() // 테스트 전용 허용 명시
+                        .requestMatchers("/api/orders/queue").authenticated()// 테스트 전용 허용 명시
                         //.requestMatchers(HttpMethod.POST, "/api/products").permitAll() // 테스트 시에만 사용
                         .requestMatchers("/actuator/**").permitAll() // 모니터링 허용
                         .requestMatchers(HttpMethod.POST, "/api/products").hasRole("ADMIN")
