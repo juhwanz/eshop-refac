@@ -2,6 +2,7 @@ package com.project.eshop_refact.global.security;
 
 import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.domain.user.UserStatus;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -40,13 +41,13 @@ public class UserDetailsImpl implements UserDetails {
     }
 
     @Override
-    public boolean isAccountNonExpired(){return true;}
+    public boolean isAccountNonExpired(){return this.user.getStatus() != UserStatus.LOCKED;} // LOCKED이면 false
 
     @Override
-    public boolean isAccountNonLocked(){return true;}
+    public boolean isAccountNonLocked(){return this.user.getStatus() != UserStatus.LOCKED;}
     @Override
-    public boolean isCredentialsNonExpired(){return true;}
+    public boolean isCredentialsNonExpired(){return this.user.getStatus() == UserStatus.ACTIVE;}
     @Override
-    public boolean isEnabled(){return true;}
+    public boolean isEnabled(){return this.user.getStatus() == UserStatus.ACTIVE;} // ACTIVE만 통과, 탈퇴, 정지 모두 false
 
 }
