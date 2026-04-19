@@ -14,29 +14,35 @@ import org.springframework.web.bind.annotation.*;
 
 
 @RestController
-@RequiredArgsConstructor        // 생성자 주입으로 통일 (Lombok)
+@RequiredArgsConstructor
 @RequestMapping("/api/orders")
 public class OrderController {
 
     private final RedissonLockStockFacade redissonLockStockFacade;
     private final OrderService orderService;
+    private final OrderIdempotencyService orderIdempotencyService;
 
+    // 주문 생성
     @PostMapping
     public ResponseEntity<ApiResponse<OrderDto.CreateResponse>> createOrder(
+            @RequestHeader(value = "Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid OrderDto.CreateRequest requestDto,
             @AuthenticationPrincipal UserDetailsImpl userDetails
-    ){
+    )throws Exception{
         Long userId = userDetails.getUser().getId();
         // Facade를 통해 "분산 락 -> 트랜잭션 -> 재고 차감" 순차 실행
-        Long orderId = redissonLockStockFacade.order(
+        OrderDto.CreateResponse response = orderIdempotencyService.processOrderWithIdempotency(
+                idempotencyKey,
                 userId,
                 requestDto.getProductId(),
                 requestDto.getCount()
         );
-        return ResponseEntity.status(201).body(ApiResponse.success("주문 성공", new OrderDto.CreateResponse(orderId)));
+
+        return ResponseEntity.status(201).body(ApiResponse.success("주문 성공", response));
     }
 
 
+    // 주문 목록 조회
     @GetMapping
     public ResponseEntity<ApiResponse<Page<OrderDto.Response>>> getOrders(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
@@ -48,7 +54,7 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("주문 목록 조회 성공", orders));
     }
 
-    // 취소 로직
+    // 주문 취소
     @PatchMapping("/{orderId}/cancel")
     public ResponseEntity<ApiResponse<Void>> cancelOrder(
             @PathVariable Long orderId,

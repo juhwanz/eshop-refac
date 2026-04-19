@@ -6,10 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 
 @RestController
@@ -42,8 +39,10 @@ public class UserController {
 
     // 로그아웃: SecurityContext에서 추출한 정보로 Redis 토큰 삭제
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        userService.logout(userDetails.getUser().getEmail());
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader String authorizationHeader, @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        String accessToken = authorizationHeader.substring(7);
+
+        userService.logout(accessToken, userDetails.getUser().getEmail());
         return ResponseEntity.ok(ApiResponse.success("로그아웃 성공"));
     }
 }
