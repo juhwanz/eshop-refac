@@ -18,6 +18,11 @@ import java.util.UUID;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
+/**
+ * 주문 생성 멱등성(Idempotency) 통합 테스트
+ * Redis를 활용하여 동일한 멱등성 키(Idempotency-Key)를 가진 중복 요청이
+ * 중복으로 처리되지 않고 1회만 안전하게 처리됨을 검증합니다.
+ */
 @SpringBootTest
 public class OrderIdempotencyTest {
 
@@ -29,11 +34,12 @@ public class OrderIdempotencyTest {
 
     @BeforeEach
     void setup(){
+        // 독립적인 테스트 환경 구성을 위한 Redis 초기화
         redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
     }
 
     @Test
-    @DisplayName("멱등성 키가 같으면 동일한 요청을 여러 번 보내도 주문은 1건만 처리된다.")
+    @DisplayName("멱등성 검증: 동일한 멱등성 키로 중복 요청 시 새로운 주문을 생성하지 않고 기존 응답을 반환한다")
     void idempotencyKey_prevents_duplicate_orders() throws Exception {
         User user = userRepository.save(new User("test@test.com", "1234", "tester", UserRoleEnum.USER));
         Product product = productRepository.save(new Product("테스트상품", 10000, 100));
@@ -44,16 +50,16 @@ public class OrderIdempotencyTest {
         Long productId = product.getId();
         int count = 1;
 
-        // When: 첫 번째 정상 요청 (실제 주문 생성 로직)
+        // When: 최초 주문 요청 수행
         OrderDto.CreateResponse firstResponse = orderIdempotencyService.processOrderWithIdempotency(idempotencyKey, userId, productId, count);
 
-        // When: 두 번째 중복 요청 (비즈니스 로직 타지 않고 Redis에서 바로 캐시된 응답 반환)
+        // When: 동일한 멱등성 키를 사용한 중복 주문 요청 수행
         OrderDto.CreateResponse secondResponse = orderIdempotencyService.processOrderWithIdempotency(idempotencyKey, userId, productId, count);
 
-        // Then: 두 응답의 주문 ID가 완벽히 동일해야 함 (새로운 주문이 생성되지 않음)
+        // Then: 중복 요청 시 주문이 추가로 생성되지 않고, 최초 요청의 응답 결과와 동일함을 검증
         assertThat(firstResponse.getOrderId()).isEqualTo(secondResponse.getOrderId());
 
-        // Redis에 저장된 키 확인
+        // Redis 내부의 멱등성 키 저장 상태 검증
         String redisKey = "idempotency:order:" + userId + ":" + idempotencyKey;
         assertThat(redisTemplate.hasKey(redisKey)).isTrue();
     }

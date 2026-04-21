@@ -30,6 +30,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+/**
+ * UserController 웹 계층 슬라이스 테스트
+ * SecurityConfig를 배제하고 컨트롤러의 요청 매핑, 입력값 검증(@Valid), 예외 처리 로직을 격리하여 테스트합니다.
+ */
 @WebMvcTest(controllers = UserController.class,
         excludeFilters = {
                 @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class)
@@ -40,6 +44,8 @@ class UserControllerTest {
     @Autowired MockMvc mockMvc;
     @Autowired ObjectMapper objectMapper;
     @MockBean UserService userService;
+
+    // WebMvcTest 환경에서 Security Filter Chain 및 기타 Interceptor 통과를 위한 Mocking
     @MockBean
     JwtUtil jwtUtil;
     @MockBean
@@ -52,7 +58,7 @@ class UserControllerTest {
 
     @Test
     @DisplayName("회원가입 성공: 201 상태코드 반환")
-    @WithMockUser // CSRF 토큰 생성을 위해 필요
+    @WithMockUser // 컨트롤러 접근 권한 검증을 통과하기 위한 Mock 인증 객체 주입
     void signup_success() throws Exception {
         // given
         UserDto.SignupRequest request = new UserDto.SignupRequest();
@@ -62,7 +68,7 @@ class UserControllerTest {
 
         // when & then
         mockMvc.perform(post("/api/users/signup")
-                        .with(csrf())
+                        .with(csrf()) // 상태 변경(POST) 요청 시 Security 정책 충족을 위한 CSRF 토큰 주입
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -100,8 +106,8 @@ class UserControllerTest {
     void signup_fail_invalid_input() throws Exception {
         // given
         UserDto.SignupRequest request = new UserDto.SignupRequest();
-        request.setEmail("invalid-email"); // 이메일 형식이 아님!
-        request.setPassword(""); // 비밀번호 공백!
+        request.setEmail("invalid-email");
+        request.setPassword("");
         request.setUsername("");
 
         // when & then
@@ -109,7 +115,7 @@ class UserControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest()) // 400 에러 기대
+                .andExpect(status().isBadRequest())
                 .andDo(print());
     }
 
@@ -122,6 +128,7 @@ class UserControllerTest {
         request.setEmail("no-email-format");
         request.setPassword("");
 
+        //when & then
         mockMvc.perform(post("/api/users/login")
                     .with(csrf())
                     .contentType(MediaType.APPLICATION_JSON)
@@ -140,10 +147,10 @@ class UserControllerTest {
         request.setPassword("password123!");
         request.setUsername("tester");
 
-        //void 메서드는 willThrow()를 먼저 쓰고, given(객체).메서드() 순서로 작성합니다.
         willThrow(new BusinessException(ErrorCode.EMAIL_DUPLICATION))
                 .given(userService).signup(any());
 
+        // When & Then
         mockMvc.perform(post("/api/users/signup")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -161,7 +168,6 @@ class UserControllerTest {
         request.setEmail("test@email.com");
         request.setPassword("wrongPassword!!!");
 
-        // 서비스의 로그인 로직이 비밀번호 불일치 예외를 던지도록 조작
         given(userService.login(any())).willThrow(new BusinessException(ErrorCode.LOGIN_FAILED));
 
         // when & then

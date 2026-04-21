@@ -46,6 +46,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * OrderController 웹 계층 슬라이스 테스트
+ * Spring Security, 대기열 인터셉터(QueueInterceptor), 멱등성 검증 등 컨트롤러 진입 전후의 인프라적 제어를 포함하여 테스트합니다.
+ */
 @ActiveProfiles("test")
 @WebMvcTest(controllers ={ OrderController.class, TestSupportController.class},
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class))
@@ -63,7 +67,7 @@ class OrderControllerTest {
     @MockBean
     OrderIdempotencyService orderIdempotencyService;
 
-    // Filter Chain 통과를 위한 껍데기들. -> 컨트롤러에 관련된 빈들만 로드 하지만, 자동으로 띄우는 애들도 있음.
+    // @WebMvcTest 환경에서 로드되는 Security Filter Chain을 통과하기 위한 의존성 Mocking
     @MockBean
     JwtUtil jwtUtil;
     @MockBean
@@ -73,15 +77,14 @@ class OrderControllerTest {
 
     private UserDetailsImpl testUserDetails;
 
-    //Test 실행되기 '직전'에 매번 실행. -> 테스트 간의 간섭을 막기위해 매번 새 객체 생성.
     @BeforeEach
     void setUp() {
+        // 테스트 간 격리를 위해 매번 새로운 인증 객체 생성
         User user = new User("user@test.com", "pw", "user", UserRoleEnum.USER);
-
         ReflectionTestUtils.setField(user, "id", 1L);
-
         testUserDetails = new UserDetailsImpl(user);
 
+        // 기본적으로 대기열 검증을 통과하도록 설정
         given(waitingQueueService.isAllowed(any())).willReturn(true);
     }
 
@@ -122,8 +125,8 @@ class OrderControllerTest {
         // when & then
         mockMvc.perform(post("/api/orders")
                         .header("Idempotency-Key", UUID.randomUUID().toString())
-                        .with(csrf()) // CSRF 토큰 필요 -> 없으면 시큐리티에서 403 Forbidden
-                        .with(user(testUserDetails)) // 로그인한 유저 주입
+                        .with(csrf()) // Spring Security 환경의 POST 요청 검증을 위한 CSRF 토큰 주입
+                        .with(user(testUserDetails))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -180,6 +183,7 @@ class OrderControllerTest {
         ReflectionTestUtils.setField(order, "id", 10L);
         ReflectionTestUtils.setField(order, "status", OrderStatus.ORDER);
 
+        // 순수 엔티티 상태(Mock)에서의 지연 로딩(N+1) 관련 예외를 방지하기 위해 명시적으로 빈 리스트 할당
         ReflectionTestUtils.setField(order, "orderItems", new ArrayList<>()); // N+1 방지용 빈 리스트
 
         Page<OrderDto.Response> pageResponse = new PageImpl<>(List.of(new OrderDto.Response(order)));
@@ -199,7 +203,7 @@ class OrderControllerTest {
     @DisplayName("대기열 토큰 발급 API 성공 테스트")
     void registerQueue() throws Exception {
         // given
-        Long expectedRank = 15L; // 예상 대기 순번
+        Long expectedRank = 15L;
         given(waitingQueueService.registerQueue(anyLong())).willReturn(expectedRank);
 
         // when & then
