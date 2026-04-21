@@ -30,6 +30,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+/**
+ * ProductService 비즈니스 로직 단위 테스트
+ * Mockito를 활용하여 영속성 계층(Repository) 및 외부 의존성(EventPublisher)을 격리하고,
+ * 상품 도메인의 핵심 비즈니스 흐름(등록, 조회, 상태 변경, 검색)을 검증합니다.
+ */
 @ExtendWith(MockitoExtension.class)
 public class ProductServiceTest {
 
@@ -43,7 +48,7 @@ public class ProductServiceTest {
     private ApplicationEventPublisher eventPublisher;
 
     @Test
-    @DisplayName("상품 등록 성공")
+    @DisplayName("상품 등록: 유효한 데이터 요청 시 Repository를 통해 상품이 저장된다")
     void registerProduct_success(){
         //Given
         ProductDto.RegisterRequest requestDto = new ProductDto.RegisterRequest();
@@ -66,7 +71,7 @@ public class ProductServiceTest {
     }
 
     @Test
-    @DisplayName("상품 ID로 조회 성공")
+    @DisplayName("단일 상품 조회: 존재하는 식별자(ID) 요청 시 상품 정보가 반환된다")
     void getProductById_success(){
         Long productId = 1L;
         Product fakeProduct = new Product("새우깡", 1500, 100);
@@ -84,7 +89,7 @@ public class ProductServiceTest {
     }
 
     @Test
-    @DisplayName("상품 ID로 조회 실패 - 상품 없음(->예외 발생)")
+    @DisplayName("단일 상품 조회 실패: 존재하지 않는 식별자(ID) 요청 시 비즈니스 예외가 발생한다")
     void getProductById_fail_notFound(){
         //given
         Long productId = 999L;
@@ -95,8 +100,9 @@ public class ProductServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.PRODUCT_NOT_FOUND);
     }
+
     @Test
-    @DisplayName("상품 가격 수정 성공")
+    @DisplayName("상품 가격 수정: 가격 상태 변경 시 도메인이 업데이트되고 부가 로직을 위한 이벤트가 발행된다")
     void updateProductPrice_success() {
         // given
         Long productId = 1L;
@@ -111,8 +117,9 @@ public class ProductServiceTest {
 
         // then
         assertThat(response.getPrice()).isEqualTo(newPrice);
-        assertThat(fakeProduct.getPrice()).isEqualTo(newPrice); // 도메인 객체의 상태가 변했는지 검증
+        assertThat(fakeProduct.getPrice()).isEqualTo(newPrice); // 도메인 객체의 상태(Dirty Checking 대상) 변경 검증
 
+        // 도메인 로직 처리 후, 시스템 결합도를 낮추기 위해 스프링 이벤트를 정상적으로 발행했는지 검증
         verify(eventPublisher, times(1)).publishEvent(any(Object.class));
     }
 
@@ -147,7 +154,9 @@ public class ProductServiceTest {
         PageRequest pageable = PageRequest.of(0, 10);
 
         Product fakeProduct = new Product("새우깡", 1500, 100);
-        ReflectionTestUtils.setField(fakeProduct, "id", 9L); // No-Offset이므로 lastId보다 작은 ID 응답 가정
+
+        // No-Offset 페이징의 특성에 따라 기준점(lastProductId) 미만의 데이터가 조회됨을 가정
+        ReflectionTestUtils.setField(fakeProduct, "id", 9L);
 
         Slice<Product> expectedSlice = new SliceImpl<>(List.of(fakeProduct));
 
@@ -159,7 +168,9 @@ public class ProductServiceTest {
         // then
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getId()).isEqualTo(9L);
-        assertThat(result.hasNext()).isFalse(); // 다음 페이지 존재 여부(Slice 특성) 확인
+
+        // Count 쿼리를 회피하는 Slice 인터페이스의 특성을 활용하여 다음 페이지 존재 여부 정합성 검증
+        assertThat(result.hasNext()).isFalse();
     }
 
 }

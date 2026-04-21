@@ -30,6 +30,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
+/**
+ * 대규모 동시성 트래픽 통합 테스트 및 락 메커니즘 성능 분석
+ * 1. 초과 요청(경합) 발생 시의 재고 정합성(Concurrency Limit) 검증
+ * 2. DB 비관적 락(Pessimistic)과 Redis 분산 락(Redisson) 간의 처리 시간 및 안정성 트레이드오프 비교
+ */
 @SpringBootTest(properties = {
         // 실제 운영 환경과 유사한 락 대기 상황 연출을 위해 타임아웃 설정
         "spring.datasource.hikari.maximum-pool-size=50",
@@ -41,15 +46,15 @@ import static org.mockito.BDDMockito.given;
 public class OrderConcurrencyIntegrationTest {
 
     @Autowired private OrderService orderService;
-    @Autowired private RedissonLockStockFacade redissonLockStockFacade; // Redis 락 테스트용
+    @Autowired private RedissonLockStockFacade redissonLockStockFacade;
     @Autowired private UserRepository userRepository;
     @Autowired private ProductRepository productRepository;
     @Autowired private OrderRepository orderRepository;
 
-    // 전략 구현체 직접 주입 (프록시가 씌워진 안전한 빈 사용)
     @Autowired private PessimisticLockStrategy pessimisticLockStrategy;
     @Autowired private RedissonClient redissonClient;
-    // 락 로직 테스트에 집중하기 위해 대기열 서비스는 Mocking (통과 처리)
+
+    // 락 성능 검증에 집중하기 위해 대기열 서비스는 통과하도록 Mocking
     @MockBean private WaitingQueueService waitingQueueService;
 
     @AfterEach
@@ -71,12 +76,11 @@ public class OrderConcurrencyIntegrationTest {
         Product product = productRepository.save(new Product("Hot Deal Item", 10000, stockQuantity));
         Long productId = product.getId();
 
-        // 사용자 미리 생성
         for (int i = 0; i < threadCount; i++) {
             userRepository.save(new User("user" + i + "@test.com", "1234", "user" + i, UserRoleEnum.USER));
         }
 
-        // 스레드 시작 전 DB에서 유저 리스트를 1회만 미리 조회 (커넥션 고갈 방지)
+        // 스레드 풀 진입 전 엔티티 리스트를 캐싱하여 병목 지점(Lock) 외의 DB 커넥션 경합 방지
         List<User> users = userRepository.findAll();
 
         ExecutorService executorService = Executors.newFixedThreadPool(32);
@@ -102,6 +106,7 @@ public class OrderConcurrencyIntegrationTest {
         }
 
         latch.await();
+
         // Then
         Product updatedProduct = productRepository.findById(productId).orElseThrow();
 
@@ -110,9 +115,9 @@ public class OrderConcurrencyIntegrationTest {
         System.out.println("실패: " + failCount.get());
         System.out.println("남은 재고: " + updatedProduct.getStockQuantity());
 
-        assertThat(successCount.get()).isEqualTo(40);   // 성공
-        assertThat(failCount.get()).isEqualTo(5);       //실패
-        assertThat(updatedProduct.getStockQuantity()).isEqualTo(0); // 남은 갯수
+        assertThat(successCount.get()).isEqualTo(40);
+        assertThat(failCount.get()).isEqualTo(5);
+        assertThat(updatedProduct.getStockQuantity()).isEqualTo(0);
     }
 
     @Test
@@ -164,7 +169,7 @@ public class OrderConcurrencyIntegrationTest {
 
         long redisLockTime = testConcurrency(
                 "Redis Lock",
-                // Facade를 통과하며 주문, 아이템 생성 등 전체 풀(Full) 로직 수행
+                // 분산 환경의 가용성을 위해 트랜잭션 커밋 범위를 확장한 Facade 로직 수행
                 (userId, productId) -> redissonLockStockFacade.order(userId, productId, 1)
         );
 
@@ -196,7 +201,7 @@ public class OrderConcurrencyIntegrationTest {
                 try {
                     task.run(user.getId(), product.getId());
                 } catch (Exception e) {
-                    // 성능 테스트에서는 에러 로그를 최소화하여 측정 오차 방지
+                    // 성능 측정 오차를 줄이기 위해 예외 로깅 생략
                 } finally {
                     latch.countDown();
                 }

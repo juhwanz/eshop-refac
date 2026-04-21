@@ -17,6 +17,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Order 도메인 단위 테스트
+ * 애그리거트 루트(Aggregate Root)인 주문(Order) 객체의 생성, 상태 전이(취소),
+ * 그리고 연관 객체(OrderItem, Product) 간의 양방향 매핑 및 비즈니스 규칙을 독립적으로 검증합니다.
+ */
 public class OrderTest {
 
     @Test
@@ -44,7 +49,7 @@ public class OrderTest {
         User user = new User("test@test.com", "1234", "tester", UserRoleEnum.USER);
         Product product = new Product("신발", 10000, 100);
 
-        // 서비스 로직 흉내냄.
+        // 주문 생성 시 서비스 계층에서 수행되는 재고 차감 상황을 도메인 레벨에서 가정하여 사전 구성
         product.removeStock(2);
         OrderItem orderItem = OrderItem.createOrderItem(product, 2);
         Order order = Order.createOrder(user, List.of(orderItem));
@@ -60,12 +65,14 @@ public class OrderTest {
     @Test
     @DisplayName("실패 : 이미 배송완료된(COMPLETED) 주문은 취소할 수 없다")
     void cancelFail(){
+        // Given
         User user = new User("test@test.com", "1234", "tester", UserRoleEnum.USER);
         Product product = new Product("신발", 10000, 100);
         OrderItem orderItem = OrderItem.createOrderItem(product, 1);
         Order order = Order.createOrder(user, List.of(orderItem));
 
-        // ReflectionTestUtil을 사용해 COMPLETED 상태
+        // 도메인 외부에서 임의로 상태를 변경할 수 없도록 캡슐화되어 있으므로,
+        // 예외 케이스 검증을 위해 리플렉션을 통해 강제로 COMPLETED 상태를 주입
         ReflectionTestUtils.setField(order, "status", OrderStatus.COMPLETED);
 
         // WHEN & THEN
