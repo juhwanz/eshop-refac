@@ -9,6 +9,11 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Product 도메인 단위 테스트
+ * 상품(Product) 엔티티 자체의 핵심 비즈니스 로직(재고 증감, 가격 수정)과 예외 검증을
+ * 외부 프레임워크 의존성 없이 독립적으로 테스트합니다.
+ */
 class ProductTest {
 
     @Test
@@ -23,7 +28,8 @@ class ProductTest {
         //Then
         assertThat(product.getStockQuantity()).isEqualTo(20);
     }
-    @Test           // JUnit에게 테스트 임을 알림.
+
+    @Test
     @DisplayName("성공 : 재고 감소 로직 정상 동작")
     void removeStock(){
         //Given

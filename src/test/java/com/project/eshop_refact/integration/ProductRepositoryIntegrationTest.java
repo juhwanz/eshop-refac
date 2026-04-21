@@ -15,8 +15,12 @@ import org.springframework.data.domain.Slice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DataJpaTest // JPA 관련 컴포넌트만 로드 (가볍고 빠름)
-@Import(QueryDslConfig.class) // QueryDSL 설정 클래스 로드 필수!
+/**
+ * ProductRepository 영속성 계층 슬라이스 테스트
+ * QueryDSL을 활용한 복합 조건 동적 쿼리와 No-Offset(Cursor) 기반 페이징 로직의 정합성을 검증합니다.
+ */
+@DataJpaTest
+@Import(QueryDslConfig.class) // QueryDSL JPAQueryFactory 빈 주입을 위한 설정 로드
 public class ProductRepositoryIntegrationTest {
 
     @Autowired
@@ -36,7 +40,7 @@ public class ProductRepositoryIntegrationTest {
         productRepository.save(p3);
         productRepository.save(p4);
 
-        // 검색 조건: 이름에 "Noteboook"이 포함되고, 가격이 100만원 이상인 것
+        // 검색 조건: 이름에 "Notebook"이 포함되고, 가격이 1,000,000원 이상인 데이터
         ProductDto.SearchCondition condition = new ProductDto.SearchCondition();
         condition.setName("Notebook");
         condition.setMinPrice(1000000);
@@ -51,7 +55,7 @@ public class ProductRepositoryIntegrationTest {
         assertThat(result.getContent()).extracting("name")
                 .containsExactlyInAnyOrder("LG Notebook", "Samsung Notebook");
 
-        // 추가 검증: Paging Total Count
+        // 페이징 메타데이터(전체 레코드 수) 정합성 검증
         assertThat(result.getTotalElements()).isEqualTo(2);
     }
 
@@ -82,18 +86,21 @@ public class ProductRepositoryIntegrationTest {
         Product p4 = productRepository.save(new Product("Item4", 4000, 10));
 
         ProductDto.SearchCondition condition = new ProductDto.SearchCondition();
-        PageRequest pageRequest = PageRequest.of(0, 2); // 2개씩 조회
+        PageRequest pageRequest = PageRequest.of(0, 2);
 
-        Long lastProductId = p4.getId(); // 4번 아이템부터 역순(desc)으로 조회 시작
+        // No-Offset 페이징을 위해 이전 페이지의 마지막 데이터 ID를 커서(Cursor)로 설정
+        Long lastProductId = p4.getId();
 
         // when
-        // lastProductId보다 작은 ID를 최신순(desc)으로 2개 가져오므로 ID 3, 2가 조회되어야 함
+        // 설정된 커서(lastProductId) 미만의 데이터를 내림차순(DESC)으로 조회 (ID 3, 2 기대)
         Slice<Product> result = productRepository.searchNoOffset(lastProductId, condition, pageRequest);
 
         // then
         assertThat(result.getContent()).hasSize(2);
         assertThat(result.getContent()).extracting("name")
                 .containsExactly("Item3", "Item2");
-        assertThat(result.hasNext()).isTrue(); // 다음 페이지(Item1)가 존재해야 하므로 true
+
+        // Slice 인터페이스의 hasNext()를 통해 다음 페이지(Item1) 존재 여부 검증
+        assertThat(result.hasNext()).isTrue();
     }
 }

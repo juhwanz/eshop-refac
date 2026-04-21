@@ -8,7 +8,10 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// OderItem이 생성될 시 재고가 줄어드는지, 가격이 고정되는지 확인
+/**
+ * OrderItem 도메인 단위 테스트
+ * 주문 상품 생성 시점의 상품 가격 스냅샷 생성 및 객체 생성 유효성 검증 로직을 테스트합니다.
+ */
 public class OrderItemTest {
 
     @Test
@@ -24,6 +27,7 @@ public class OrderItemTest {
         // Then
         assertThat(orderItem.getCount()).isEqualTo(count);
         assertThat(orderItem.getOrderPrice()).isEqualTo(100000);
+        // OrderItem 객체 생성 자체는 Product의 상태(재고)를 변경하지 않음을 검증
         assertThat(product.getStockQuantity()).isEqualTo(100);
     }
 

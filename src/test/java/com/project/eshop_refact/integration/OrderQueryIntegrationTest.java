@@ -25,6 +25,11 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 주문 조회 쿼리 최적화 통합 테스트
+ * 1. default_batch_fetch_size 설정 기반의 N+1 문제 해결 검증
+ * 2. 컬렉션 Fetch Join과 Paging 혼용 시 발생하는 인메모리 페이징(OOM 위험) 경고 상황 증명
+ */
 @SpringBootTest(properties = {
         "spring.jpa.properties.hibernate.default_batch_fetch_size=100"
 })
@@ -37,12 +42,12 @@ public class OrderQueryIntegrationTest {
     @Autowired ProductRepository productRepository;
     @Autowired EntityManager em;
 
-    private Long testUserId; // 조회용 ID를 저장할 클래스 변수
+    private Long testUserId;
 
     @BeforeEach
     void setup(){
         User user = userRepository.save(new User("nplus1@test.com", "1234", "tester", UserRoleEnum.USER));
-        testUserId = user.getId(); // 저장된 유저의 ID 기록
+        testUserId = user.getId();
 
         Product product = productRepository.save(new Product("Test Item", 1000, 100));
 
@@ -53,8 +58,9 @@ public class OrderQueryIntegrationTest {
         }
         orderRepository.saveAll(orders);
 
+        // 영속성 컨텍스트를 초기화하여, 이후 조회 시 1차 캐시가 아닌 실제 쿼리 발생을 유도합니다.
         em.flush();
-        em.clear(); // 1차 캐시 비우기 (쿼리 발생 유도)
+        em.clear();
     }
 
     @Test
@@ -62,33 +68,32 @@ public class OrderQueryIntegrationTest {
     void checkNPlusOne() {
         System.out.println("\n========== [조회 시작] ==========");
 
-        // When: 저장해둔 ID를 바로 사용해서 조회
-        Page<OrderDto.Response> result =
-                orderService.getOrders(testUserId, PageRequest.of(0, 10));
+        //when
+        Page<OrderDto.Response> result = orderService.getOrders(testUserId, PageRequest.of(0, 10));
 
         System.out.println("========== [조회 종료] ==========\n");
 
-        // Then: 10개의 주문이 모두 정상적으로 조회되었는지 검증
+        // Then
         assertThat(result.getContent()).hasSize(10);
         assertThat(result.getContent().get(0).getOrderId()).isNotNull();
     }
 
     @Test
-    @DisplayName("🚨 [위험] Fetch Join과 페이징 혼용 시 메모리 페이징 발생 증명")
+    @DisplayName("안티 패턴 증명: 컬렉션 Fetch Join과 Paging 혼용 시 Hibernate 인메모리 페이징이 발생한다")
     void checkMemoryPagingWarning() {
         System.out.println("\n========== [위험한 조회 시작: Fetch Join + Paging] ==========");
 
-        // Given: setup()에서 생성한 유저 정보 가져오기
+        // Given
         User user = userRepository.findById(testUserId).orElseThrow();
 
-        // When: [레거시] Fetch Join이 걸려있는 페이징 메서드 호출
-        // PageSize를 10으로 주었지만, Hibernate는 다르게 동작합니다.
-        org.springframework.data.domain.Page<Order> result =
-                orderRepository.findAllByUserWithFetchJoinAndPaging(user, PageRequest.of(0, 10));
+        // When
+        // PageRequest를 전달하더라도, 1:N 관계의 Fetch Join으로 인해 DB단 페이징(Limit/Offset)이 무시되고
+        // Hibernate가 전체 데이터를 메모리로 불러와(In-Memory Paging) 애플리케이션 OOM을 유발할 수 있습니다.
+        org.springframework.data.domain.Page<Order> result = orderRepository.findAllByUserWithFetchJoinAndPaging(user, PageRequest.of(0, 10));
 
         System.out.println("========== [위험한 조회 종료] ==========\n");
 
-        // Then: 결과 자체는 10개가 나오지만, 콘솔 로그에 치명적인 경고가 남아야 함
+        // Then: 결과는 정상적으로 반환되지만, 콘솔에 HHH000104(firstResult/maxResults warning) 경고가 출력됨을 증명
         assertThat(result.getContent()).hasSize(10);
     }
 }

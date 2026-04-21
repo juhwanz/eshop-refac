@@ -28,7 +28,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-// DB 없이 Mock을 써서 흐름만 빠르게 검증.
+/**
+ * OrderService 비즈니스 로직 단위 테스트
+ * 데이터베이스 연동 없이 Mockito를 활용하여 서비스 계층의 순수 도메인 흐름과 예외 처리,
+ * 그리고 의존 객체(StockStrategy 등)와의 상호작용을 격리하여 검증합니다.
+ */
 @ExtendWith(MockitoExtension.class)
 public class OrderServiceTest {
 
@@ -43,7 +47,7 @@ public class OrderServiceTest {
     private StockStrategy stockStrategy;
 
     @Test
-    @DisplayName(" 주문 성공시, 재고 감소 요청 -> 주문 저장.")
+    @DisplayName("주문 생성 성공: 재고 차감 전략(Strategy) 수행 후 주문 정보가 저장된다")
     void orderSuccess(){
         //Given
         Long userId = 1L;
@@ -53,9 +57,10 @@ public class OrderServiceTest {
         User user = new User("user@test.com", "pw", "user", UserRoleEnum.USER);
         Product product = new Product("item", 10000, 10);
 
-        //Mocking : 가짜 행동 정의
+
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
-        // ProductService가 호출되면 재고가 줄어든 상품을 반환한다고 가정
+
+        // 동시성 제어 전략 객체(StockStrategy)가 정상적으로 재고를 차감한 상품을 반환하도록 Stubbing
         given(stockStrategy.decrease(productId, count)).willReturn(product);
 
         //When
@@ -67,7 +72,7 @@ public class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("주문 실패 : 존재하지 않은 유저 -> 예외 발생")
+    @DisplayName("주문 실패: 존재하지 않는 유저 요청 시 비즈니스 예외가 발생한다")
     void orderFail(){
         //Given
         Long userId = 999L;
@@ -80,12 +85,12 @@ public class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("주문 실패 : 재고 부족 시 예외 발생 (StockStrategy 예외 전파)")
+    @DisplayName("주문 실패: 재고 부족 시 전략 객체(StockStrategy)의 예외가 정상적으로 전파된다")
     void orderFail_outOfStock() {
         // Given
         Long userId = 1L;
         Long productId = 100L;
-        int count = 20; // 재고를 초과하는 수량
+        int count = 20;
 
         User user = new User("user@test.com", "pw", "user", UserRoleEnum.USER);
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
@@ -108,7 +113,6 @@ public class OrderServiceTest {
         User user = new User("user@test.com", "pw", "user", UserRoleEnum.USER);
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
-        // [수정] 필드가 채워진 정상적인 Order 객체 생성
         Product product = new Product("item", 10000, 10);
         OrderItem orderItem = OrderItem.createOrderItem(product, 1);
         Order order = Order.createOrder(user, List.of(orderItem));
@@ -128,29 +132,28 @@ public class OrderServiceTest {
 
 
     @Test
-    @DisplayName("주문 취소 성공 (도메인 로직 호출 검증)")
+    @DisplayName("주문 취소 성공: 주문 상태가 CANCEL로 전이되고 연관된 상품의 재고가 롤백된다")
     void cancelOrder_success() {
-        // [1] Given: 최초 재고 5개인 상품 준비
+        // Given
         Product product = new Product("item", 10000, 5);
         User user = new User("test", "pw", "user", UserRoleEnum.USER);
         ReflectionTestUtils.setField(user, "id", 1L);
 
-        // [2] 주문 생성
-        // 현재 OrderItem 생성 시 재고를 안 줄이므로, 테스트를 위해 수동으로 줄여줍니다.
-        product.removeStock(2); // <--- 테스트 환경에 맞게 수동 차감 추가 (5 -> 3)
+        // 주문 생성 시 서비스 계층에서 수행되는 재고 차감 상황을 도메인 레벨에서 사전 구성
+        product.removeStock(2);
 
         OrderItem orderItem = OrderItem.createOrderItem(product, 2);
         Order order = Order.createOrder(user, List.of(orderItem));
 
-        // [검증 1] 취소 전 재고가 3인지 확인
         assertThat(product.getStockQuantity()).isEqualTo(3);
 
         given(orderRepository.findById(10L)).willReturn(Optional.of(order));
 
-        // [3] When: 주문 취소 실행 (내부에서 orderItem.getProduct().addStock(2) 호출됨)
+        // When
         orderService.cancelOrder(10L, 1L);
 
-        // [4] Then: 취소 후 재고가 다시 5인지 확인
+        // Then
+        // 취소 로직 내부에서 도메인 메서드(addStock)가 호출되어 재고가 정상 복구되었는지 확인
         assertThat(product.getStockQuantity()).isEqualTo(5);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
     }
@@ -170,18 +173,18 @@ public class OrderServiceTest {
     }
 
     @Test
-    @DisplayName("주문 취소 실패 : 권한 없는 유저 (타인의 주문 취소 시도)")
+    @DisplayName("주문 취소 실패: 타인의 주문을 취소하려 할 경우 권한 예외(FORBIDDEN)가 발생한다")
     void cancelOrder_fail_forbidden() {
         // Given
         Long orderId = 10L;
         Long ownerId = 1L;
-        Long requesterId = 2L; // 요청자는 타인
+        Long requesterId = 2L;
 
         User owner = new User("owner@test.com", "pw", "owner", UserRoleEnum.USER);
         ReflectionTestUtils.setField(owner, "id", ownerId);
 
         Order order = new Order();
-        ReflectionTestUtils.setField(order, "user", owner); // 주문의 소유자는 ownerId (1L)
+        ReflectionTestUtils.setField(order, "user", owner);
 
         given(orderRepository.findById(orderId)).willReturn(Optional.of(order));
 

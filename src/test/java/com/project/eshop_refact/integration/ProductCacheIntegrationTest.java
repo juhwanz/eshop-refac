@@ -14,6 +14,10 @@ import org.springframework.cache.CacheManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * 분산 캐시(Redis) 환경의 데이터 정합성 통합 테스트
+ * Cache-Aside 패턴에서의 데이터 조회(Put) 및 데이터 변경 시 무효화(Evict) 라이프사이클을 검증합니다.
+ */
 @SpringBootTest
 public class ProductCacheIntegrationTest {
 
@@ -21,8 +25,8 @@ public class ProductCacheIntegrationTest {
     @Autowired private ProductRepository productRepository;
     @Autowired private CacheManager cacheManager; // RedisCacheManager 주입
 
-    // 매 테스트 직전에 'products'캐시 공간 초기화 <- 전체 테스트 코드 한 번에 돌릴경우 -> 다른 테스트에서 만들어둔 캐시로 인해 실패 방지
-    // Redis -> 외부 상태 공유 때문.
+    // Redis는 전역 상태를 공유하는 외부 인프라이므로, 전체 테스트 실행 시
+    // 테스트 간 간섭(Isolation 위반)을 방지하기 위해 매 테스트 전 캐시를 명시적으로 초기화합니다.
     @BeforeEach
     void clearCache(){
         Cache cache = cacheManager.getCache("products");
@@ -32,40 +36,36 @@ public class ProductCacheIntegrationTest {
     @Test
     @DisplayName("캐시 정합성 검증: 조회(Miss) -> 캐시생성(Put) -> 수정(Evict) -> 재조회(New Put)")
     void verifyCacheConsistency() {
-        // 1. [Given] 데이터 준비 (초기 가격 10,000원)
+        // Given: 데이터 준비
         Product product = productRepository.save(new Product("Cache Test Item", 10000, 100));
         Long productId = product.getId();
 
-        // 2. [When] 1차 조회 (캐시가 없으니 DB에서 읽어옴)
+        // When: 1차 조회 (Cache Miss -> DB 조회 및 Cache Put 발생)
         System.out.println("\n-> [1차 조회] 캐시 Miss -> DB 조회");
         productService.getProductById(productId);
 
-        // 3. [Then] 캐시가 생성되었는지 확인
+        // Then: 캐시 등록 검증
         Cache cache = cacheManager.getCache("products");
         assertThat(cache).isNotNull();
-        // Redis에 저장된 값 확인 (JSON 형태일 것임)
         assertThat(cache.get(productId)).isNotNull();
         System.out.println(" 캐시 등록 확인 (Key: " + productId + ")");
 
-        // 4. [When] 가격 수정 (10,000원 -> 20,000원)
-        // @CacheEvict가 동작해서 캐시를 지워야 함!
+        // When: 데이터 수정 (@CacheEvict 동작으로 인한 캐시 무효화 발생)
         System.out.println("\n-> [데이터 수정] 가격 20,000원으로 변경 -> @CacheEvict 발동");
         productService.updateProductPrice(productId, 20000);
 
-        // 5. [Then] 캐시가 정말 지워졌는지 확인 (Evict 검증)
-        // 주의: Redis에서 키가 사라져야 정합성이 유지됨 (옛날 값 10,000원이 남아있으면 안 됨)
+        // Then: 캐시 삭제(Evict) 검증을 통한 정합성 확인
         assertThat(cache.get(productId)).isNull();
         System.out.println(" 캐시 삭제(Evict) 확인 -> 정합성 OK");
 
-        // 6. [When] 2차 조회 (캐시가 없으니 다시 DB에서 20,000원을 읽어와야 함)
+        // When: 2차 조회 (Cache Miss -> DB에서 최신 데이터 조회 및 Cache Put 발생)
         System.out.println("\n-> [2차 조회] 캐시 Miss -> DB에서 최신 값(20,000원) 조회");
         ProductDto.Response response = productService.getProductById(productId);
 
-        // 7. [Then] 조회된 값이 20,000원인지 확인
+        // Then: 최신 데이터 반환 및 캐시 갱신(Refresh) 검증
         assertThat(response.getPrice()).isEqualTo(20000);
         System.out.println(" 최종 데이터 확인: " + response.getPrice() + "원");
 
-        // 8. [Then] 캐시가 다시 갱신되었는지 확인
         assertThat(cache.get(productId)).isNotNull();
         System.out.println(" 캐시 갱신(Refresh) 완료\n");
     }
