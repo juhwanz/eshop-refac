@@ -1,15 +1,17 @@
 
 # 1. Common Settings
 spring:
+  profiles:
+    active: local
   application:
     name: eshop-refact
 
   datasource:
     hikari:   # HikariCP [DB 커넥션 풀 세팅] : 기본값 10개.
       # 대용량 트래픽 및 동시성 처리를 고려한 커넥션 풀 최적화
-      maximum-pool-size: 20
+      maximum-pool-size: 3
       minimum-idle: 10
-      connection-timeout: 30000
+      connection-timeout: 1000
       # DB의 wait_timeout보다 짧게 설정하여 예기치 않은 커넥션 끊김(Connection Closed) 방지
       max-lifetime: 1800000
     url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
@@ -64,7 +66,7 @@ spring:
       on-profile: local
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     #ddl-auto: update # 개발 중에는 테이블 자동 변경 허용
     #show-sql: true     # 쿼리 로그 출력 O -> sysout으로 성능 저하 가능성
     properties:
