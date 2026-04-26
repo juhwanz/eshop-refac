@@ -2,12 +2,14 @@ package com.project.eshop_refact.domain.order;
 
 import com.project.eshop_refact.domain.order.strategy.PessimisticLockStrategy;
 import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.product.ProductCacheEvictEvent;
 import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.global.exception.BusinessException;
 import com.project.eshop_refact.global.exception.ErrorCode;
 import com.project.eshop_refact.domain.user.UserRepository;
 import com.project.eshop_refact.domain.order.strategy.StockStrategy;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final StockStrategy stockStrategy;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 주문 생성
@@ -76,5 +79,10 @@ public class OrderService {
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
         order.cancel();
+
+        // 재고 복구 후, 변경된 상품의 캐시를 무효화하기 위해 이벤트를 발행합니다.
+        order.getOrderItems().forEach(orderItem ->
+                eventPublisher.publishEvent(new ProductCacheEvictEvent(orderItem.getProduct().getId()))
+        );
     }
 }

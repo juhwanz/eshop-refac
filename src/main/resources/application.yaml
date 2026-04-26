@@ -9,8 +9,8 @@ spring:
   datasource:
     hikari:   # HikariCP [DB 커넥션 풀 세팅] : 기본값 10개.
       # 대용량 트래픽 및 동시성 처리를 고려한 커넥션 풀 최적화
-      maximum-pool-size: 3
-      minimum-idle: 10
+      maximum-pool-size: 10
+      minimum-idle: 3
       connection-timeout: 1000
       # DB의 wait_timeout보다 짧게 설정하여 예기치 않은 커넥션 끊김(Connection Closed) 방지
       max-lifetime: 1800000
@@ -46,10 +46,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, metrics
+        include: health
   endpoint:
     health:
-      show-details: always    # 인프라(DB, Redis 등) 상태 모니터링 가시성 확보
+      show-details: never
 
 app:
   order:

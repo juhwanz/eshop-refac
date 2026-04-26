@@ -1,3 +1,0 @@
-# 애플리케이션 실행을 위해 아래 환경변수 설정이 필요합니다.
-DB_PASSWORD: "1590"
-JWT_SECRET_KEY: "v6yB8p9zA2d4e7g9h1j3k5mN8pQ4sT7wYzB3vE6rH9tK2mN5pQ8sT1wXzAbCdEfG"
