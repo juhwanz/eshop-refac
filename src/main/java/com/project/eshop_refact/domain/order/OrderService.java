@@ -1,5 +1,6 @@
 package com.project.eshop_refact.domain.order;
 
+import com.project.eshop_refact.domain.order.strategy.PessimisticLockStrategy;
 import com.project.eshop_refact.domain.product.Product;
 import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.global.exception.BusinessException;
