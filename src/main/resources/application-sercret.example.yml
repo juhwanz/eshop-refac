@@ -1,3 +1,0 @@
-# 애플리케이션 실행을 위해 아래 환경변수 설정이 필요합니다.
-DB_PASSWORD: "your_db_password_here"
-JWT_SECRET_KEY: "your_base64_encoded_jwt_secret_key_here_must_be_long_enough"

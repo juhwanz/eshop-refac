@@ -25,7 +25,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
        registry.addInterceptor(queueInterceptor)
-                .addPathPatterns("/api/orders/**")
-                .excludePathPatterns("/api/orders/queue");
+               .addPathPatterns("/api/orders/**")
+               .excludePathPatterns("/api/orders/queue");
     }
 }

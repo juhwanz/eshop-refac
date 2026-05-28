@@ -2,47 +2,56 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ] # main 브랜치에 코드가 push 될 때마다 실행
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
-    steps:
-      # 1. 깃허브 저장소에서 코드 가져오기
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
-      # 2. 자바 17 환경 세팅
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
-      # 3. Gradle 빌드 (테스트는 생략)
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew clean build -x test
+      - name: Test with Gradle
+        run: ./gradlew clean test
 
-      # 4. 도커 허브 로그인 (아까 등록한 Secrets 활용)
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 5. 도커 이미지 생성 및 도커 허브로 푸시
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          tags: hongjuhwan/eshop-app:latest # 본인 아이디 - nickname!!
+          tags: hongjuhwan/eshop-app:latest
 
-      # 6. EC2 서버에 원격 접속하여 새 버전으로 배포
       - name: Deploy to EC2
         uses: appleboy/ssh-action@master
         with:
