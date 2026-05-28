@@ -23,6 +23,7 @@ public class OrderIdempotencyService {
     private final RedissonLockStockFacade redissonLockStockFacade;
 
     private final MeterRegistry meterRegistry;
+    private final OrderService orderService;
 
     public OrderDto.CreateResponse processOrderWithIdempotency(String idempotencyKey, Long userId, Long productId, int count) throws Exception {
         String redisKey = "idempotency:order:" + userId + ":" + idempotencyKey;

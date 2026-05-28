@@ -40,7 +40,7 @@ import static org.mockito.BDDMockito.given;
         "spring.datasource.hikari.maximum-pool-size=50",
         "spring.datasource.hikari.connection-timeout=5000",
         "spring.jpa.properties.hibernate.show_sql=false",
-        "app.order.lcok.wait-time=120",
+        "app.order.lock.wait-time=120",
         "logging.level.root=error"
 })
 public class OrderConcurrencyIntegrationTest {
