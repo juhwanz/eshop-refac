@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
                                      email VARCHAR(255) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     username VARCHAR(100) NOT NULL,
-    role VARCHAR(50) NOT NULL,
+    user_role VARCHAR(50) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
     login_fail_count INT NOT NULL DEFAULT 0,
     created_at DATETIME(6),
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS orders (
                                       id BIGINT AUTO_INCREMENT PRIMARY KEY,
                                       user_id BIGINT NOT NULL,
                                       status VARCHAR(50) NOT NULL,
+    order_date DATETIME(6),
     created_at DATETIME(6),
     updated_at DATETIME(6)
     );
