@@ -8,6 +8,8 @@ build/
 ### etc
 .DS_Store
 __MACOSX/
+__pycache__/
+*.py[cod]
 
 ### STS ###
 .apt_generated
@@ -45,4 +47,7 @@ src/main/resources/application-secret.yaml
 application-secret.yaml
 .env
 
-tokens.csb
+tokens.csv
+
+### Runtime data ###
+mysql-data/
