@@ -1,0 +1,17 @@
+{
+  "description": "작업 종료 전에 빠르고 비파괴적인 저장소 검사를 수행합니다.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git rev-parse --show-toplevel)/.codex/hooks/stop_validate.py\"",
+            "timeout": 15,
+            "statusMessage": "변경 사항 안전 검사 중"
+          }
+        ]
+      }
+    ]
+  }
+}
