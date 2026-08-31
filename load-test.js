@@ -1,7 +1,14 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const BASE_URL = 'http://localhost:8080/api';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080/api';
+const USER_TOKEN = __ENV.USER_TOKEN;
+
+export function setup() {
+    if (!USER_TOKEN) {
+        throw new Error('USER_TOKEN 환경 변수를 설정해야 합니다.');
+    }
+}
 
 // [필수 수정] Swagger나 Postman에서 발급받은 본인의 Access Token을 넣어주세요!
 export const options = {
@@ -23,7 +30,7 @@ export const options = {
     },
 };
 
-const TOKEN = 'Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJrNnRlc3RAdGVzdC5jb20iLCJ0eXBlIjoiQUNDRVNTIiwiaWF0IjoxNzc3MDI4NTkwLCJleHAiOjE3NzcxMTQ5OTAsImF1dGgiOiJVU0VSIn0.qzD_yNHfP7vUk9jsLWi1zsz1bQ9fo5Yf8akr0WIJEfyKx1jt2brH6QaPRgnOmOWG';
+const TOKEN = `Bearer ${USER_TOKEN}`;
 
 // --- 주문 폭주 로직 ---
 export function orderTask() {
