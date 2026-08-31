@@ -3,7 +3,7 @@
 > 주문 정합성과 조회 가용성을 함께 검증하고, 멱등성·조회 최적화·운영 보강까지 반영한 Spring Boot 기반 이커머스 백엔드 프로젝트입니다.
 > 락을 걸어서 데이터 정합성을 맞추는 건 기본입니다. 하지만 락 때문에 다른 유저들의 조회 화면까지 멈춘다면 좋은 설계일까요?"
 
-![Java](https://img.shields.io/badge/Java-17-orange?logo=java)
+![Java](https://img.shields.io/badge/Java-21-orange?logo=java)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.0-green?logo=springboot)
 ![Redis](https://img.shields.io/badge/Redis-Redisson-red?logo=redis)
 ![QueryDSL](https://img.shields.io/badge/QueryDSL-5.1.0-lightgrey)
@@ -66,7 +66,7 @@
 
 | 구분 | 기술 |
 |---|---|
-| Language | Java 17 |
+| Language | Java 21 |
 | Framework | Spring Boot 3.3.0, Spring Web, Spring Data JPA, Spring Security, Validation |
 | Database | MySQL |
 | Cache / Lock | Redis, Redisson, ShedLock |
@@ -160,7 +160,7 @@ Swagger UI는 `/swagger-ui.html` 경로로 확인할 수 있습니다.
 ## 실행 방법
 
 ### 1) 사전 준비
-- Java 17
+- Java 21
 - Docker / Docker Compose
 - MySQL 8
 - Redis
