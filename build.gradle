@@ -10,7 +10,7 @@ description = 'Demo project for Spring Boot'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
+		languageVersion = JavaLanguageVersion.of(21)
 	}
 }
 
@@ -94,4 +94,51 @@ clean.doLast {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	exclude '**/integration/**'
+	exclude '**/stressTest/**'
+	exclude '**/EshopRefactApplicationTests.class'
+	exclude '**/OrderIdempotencyTest.class'
+}
+
+tasks.register('unitTest') {
+	group = 'verification'
+	description = '외부 Redis/MySQL 없이 실행할 수 있는 빠른 테스트를 실행합니다.'
+	dependsOn tasks.named('test')
+}
+
+tasks.register('integrationTest', Test) {
+	group = 'verification'
+	description = 'H2와 로컬 Redis를 사용하는 통합·동시성 테스트를 실행합니다.'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform()
+	include '**/integration/**'
+	include '**/EshopRefactApplicationTests.class'
+	include '**/OrderIdempotencyTest.class'
+	exclude '**/integration/ProductDeepPaginationTest.class'
+	shouldRunAfter tasks.named('test')
+}
+
+tasks.register('stressTest', Test) {
+	group = 'verification'
+	description = '로컬 MySQL을 변경하거나 대량 데이터를 생성하는 테스트를 실행합니다.'
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform()
+	include '**/stressTest/**'
+	include '**/integration/ProductDeepPaginationTest.class'
+	shouldRunAfter tasks.named('integrationTest')
+
+	doFirst {
+		if (!project.hasProperty('allowStressTest')) {
+			throw new GradleException('스트레스 테스트는 로컬 DB를 변경할 수 있습니다. 승인 후 -PallowStressTest를 추가하세요.')
+		}
+	}
+}
+
+tasks.register('verifyChange') {
+	group = 'verification'
+	description = '안전한 테스트와 실행 가능한 JAR 패키징을 검증합니다.'
+	dependsOn tasks.named('unitTest')
+	dependsOn tasks.named('bootJar')
 }

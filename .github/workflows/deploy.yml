@@ -23,21 +23,18 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
           cache: 'gradle'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Test with Gradle
-        run: ./gradlew clean test
-
-      - name: Build with Gradle
-        run: ./gradlew build -x test
+      - name: Verify with Gradle
+        run: ./gradlew clean verifyChange
 
       - name: Login to DockerHub
         uses: docker/login-action@v2
