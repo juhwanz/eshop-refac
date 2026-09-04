@@ -169,9 +169,12 @@ Swagger UI는 `/swagger-ui.html` 경로로 확인할 수 있습니다.
 민감 정보는 코드에 하드코딩하지 않고, 애플리케이션 실행 전 환경 변수로 주입해야 합니다.
 
 ```bash
+export DB_USERNAME=your_db_username
 export DB_PASSWORD=your_db_password
 export JWT_SECRET_KEY=your_base64_encoded_jwt_secret
 ```
+
+운영 환경의 자격 증명 교체와 유출 대응 절차는 [자격 증명 관리 문서](docs/security/credential-management.md)를 참고하세요.
 
 ### 3) 로컬 인프라 실행
 `docker-compose.yml`에는 MySQL과 Redis가 포함되어 있습니다.
