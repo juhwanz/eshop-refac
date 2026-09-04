@@ -1,0 +1,44 @@
+services:
+  # 1. MySQL (Main DB)
+  mysql:
+    image: mysql:8.0
+    container_name: eshop-mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_DATABASE: eshop
+      TZ: Asia/Seoul
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./mysql-data:/var/lib/mysql
+
+  # 2. Redis (Cache & Distributed Lock)
+  redis:
+    image: redis:latest
+    container_name: eshop-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      TZ: Asia/Seoul
+
+  # 3. Spring Boot Application (WAS)
+  eshop-server:
+    image: hongjuhwan/eshop-app:latest
+    container_name: eshop-server
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      # application.yaml의 설정을 환경 변수로 덮어씌워 내부 컨테이너 통신을 연결합니다.
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-root}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: local
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    depends_on:
+      - mysql
+      - redis
