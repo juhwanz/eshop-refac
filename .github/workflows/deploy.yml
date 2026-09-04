@@ -3,6 +3,8 @@ name: Build and Publish Image
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   build-and-publish:
@@ -37,12 +39,14 @@ jobs:
         run: ./gradlew clean verifyChange
 
       - name: Login to DockerHub
+        if: github.event_name == 'push'
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and Push Docker Image
+        if: github.event_name == 'push'
         uses: docker/build-push-action@v4
         with:
           context: .
