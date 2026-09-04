@@ -1,0 +1,22 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "jwt-compact-token"
+description = "JWT compact serialization"
+regex = '''\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b'''
+keywords = ["eyJ"]
+
+[[allowlists]]
+description = "Known test-only signing keys reported by the generic assignment rule"
+targetRules = ["generic-api-key"]
+paths = [
+  '''(?:^|/)src/test/resources/application\.yaml$''',
+  '''(?:^|/)src/test/java/com/project/eshop_refact/config/JwtUtilTest\.java$'''
+]
+
+[[allowlists]]
+description = "Environment variable references are not embedded credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = ['''\$\{(?:DB_PASSWORD|JWT_SECRET_KEY)(?::[^}]*)?\}''']
