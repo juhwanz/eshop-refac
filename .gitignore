@@ -50,4 +50,18 @@ application-secret.yaml
 tokens.csv
 
 ### Runtime data ###
-mysql-data/
+**/mysql-data/
+
+# Database-generated certificates and keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# MySQL binary logs
+binlog
+binlog.*
+*.binlog
+*.binlog.*
