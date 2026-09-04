@@ -1,0 +1,48 @@
+services:
+  # 1. 공통 캐시 서버 (Redis)
+  redis:
+    image: redis:latest
+    container_name: eshop-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      TZ: Asia/Seoul
+
+  # 2. 교대 근무자 1 (Blue - 8080 포트)
+  eshop-blue:
+    image: hongjuhwan/eshop-app:latest
+    container_name: eshop-blue
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./.env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://${RDS_HOST:?RDS_HOST is required}:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+    depends_on:
+      - redis
+
+  # 3. 교대 근무자 2 (Green - 8081 포트)
+  eshop-green:
+    image: hongjuhwan/eshop-app:latest
+    container_name: eshop-green
+    restart: always
+    ports:
+      - "8081:8080"
+    env_file:
+      - ./.env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://${RDS_HOST:?RDS_HOST is required}:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_PROFILES_ACTIVE: prod
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
+    depends_on:
+      - redis

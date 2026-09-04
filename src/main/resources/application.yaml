@@ -1,0 +1,96 @@
+
+# 1. Common Settings
+spring:
+  profiles:
+    active: local
+  application:
+    name: eshop-refact
+
+  datasource:
+    hikari:   # HikariCP [DB 커넥션 풀 세팅] : 기본값 10개.
+      # 대용량 트래픽 및 동시성 처리를 고려한 커넥션 풀 최적화
+      maximum-pool-size: 10
+      minimum-idle: 3
+      connection-timeout: 1000
+      # DB의 wait_timeout보다 짧게 설정하여 예기치 않은 커넥션 끊김(Connection Closed) 방지
+      max-lifetime: 1800000
+    url: jdbc:mysql://localhost:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true # 레거시 스키마가 존재하는 환경에서도 안전한 마이그레이션 수행
+
+  jpa:
+    # OSIV: 트랜잭션 범위 밖에서 DB 커넥션 점유 방지
+    # 트랜잭션 종료 시 즉각적인 커넥션 반환을 유도하여 커넥션 풀 고갈(Connection Pool Exhaustion) 방지
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+        # 1:N 연관관계 조회 시 IN 절을 사용해 N+1 문제를 방지하고 메모리 부하 완화
+        default_batch_fetch_size: 100
+
+jwt:
+  secret: ${JWT_SECRET_KEY}
+  expiration-time: 86400000 # 24시간
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+app:
+  order:
+    lock:
+      wait-time: 10 # 대기열 병목 방지를 위한 분산 락 획득 최대 대기 시간 (Fail-Fast 유도)
+      lease-time: 3 # 장애 발생 시 데드락을 방지하기 위한 최대 락 점유 시간
+---
+
+# 2. Local Profile (개발 환경)
+
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    hibernate:
+      ddl-auto: update
+    #ddl-auto: update # 개발 중에는 테이블 자동 변경 허용
+    #show-sql: true     # 쿼리 로그 출력 O -> sysout으로 성능 저하 가능성
+    properties:
+      hibernate:
+        format_sql: true
+
+logging:
+  level:
+    org.hibernate.SQL: debug # SQL 쿼리를 로거를 통해 출력
+    org.hibernate.type.descriptor.sql: trace # 바인딩 변수(? 값)까지 보고 싶을 때 (개발환경용)
+    com.project.eshop_refact: debug # 내 프로젝트 로그 레벨
+
+---
+
+# 3. Prod Profile (운영 환경 시뮬레이션)
+spring:
+  config:
+    activate:
+      on-profile: prod
+  jpa:
+    hibernate:
+      # 운영 환경 스키마 자동 변경 원천 차단 (안전성 보장)
+      ddl-auto: validate
+    show-sql: false      # 성능을 위해 쿼리 로그 출력 X
+    properties:
+      hibernate:
+        format_sql: false
