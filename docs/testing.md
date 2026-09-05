@@ -9,7 +9,7 @@
 | `test`, `unitTest` | 도메인, 서비스, MVC slice, JWT 단위 테스트 | 없음 | 기본 |
 | `verifyChange` | `unitTest` + `bootJar` | 없음 | CI |
 | `integrationTest` | Spring Context, 캐시, 동시성, 조회 통합 테스트 | H2 + localhost Redis | 별도 |
-| `stressTest` | 대량 데이터와 깊은 페이지 실험 | local 프로필 MySQL | 명시적 승인 필요 |
+| `stressTest` | 대량 데이터와 깊은 페이지 실험 | local 프로필 MariaDB | 명시적 승인 필요 |
 
 `test`와 `unitTest`에서는 다음 항목을 제외합니다.
 
@@ -18,7 +18,7 @@
 - `EshopRefactApplicationTests`
 - `OrderIdempotencyTest`
 
-`ProductDeepPaginationTest`는 개발자 MySQL에 많은 데이터를 만들 수 있어 `integrationTest`에서도 제외하고 `stressTest`에 포함합니다.
+`ProductDeepPaginationTest`는 개발자 MariaDB에 많은 데이터를 만들 수 있어 `integrationTest`에서도 제외하고 `stressTest`에 포함합니다.
 
 ## 권장 실행 순서
 
@@ -49,7 +49,7 @@ docker compose stop redis
 
 ### 대량 데이터 실험
 
-이 작업은 로컬 MySQL 데이터를 변경할 수 있습니다. 데이터 생성과 장시간 실행을 인지하고 승인한 경우에만 실행합니다.
+이 작업은 로컬 MariaDB 데이터를 변경할 수 있습니다. 데이터 생성과 장시간 실행을 인지하고 승인한 경우에만 실행합니다.
 
 ```bash
 ./gradlew stressTest -PallowStressTest
@@ -97,7 +97,7 @@ docker compose stop redis
 | 순수 락 오버헤드 | 199ms | 432ms |
 | 전체 주문 흐름 | 67ms | 456ms |
 
-서로 수행 범위가 완전히 같은 운영 benchmark는 아닙니다. 성능 결론은 동일 workload와 MySQL 실행 계획을 수집하는 [#17](https://github.com/juhwanz/eshop-refac/issues/17), [#18](https://github.com/juhwanz/eshop-refac/issues/18), [#25](https://github.com/juhwanz/eshop-refac/issues/25)에서 보강할 예정입니다.
+서로 수행 범위가 완전히 같은 운영 benchmark는 아닙니다. 성능 결론은 동일 workload와 MariaDB 실행 계획을 수집하는 [#17](https://github.com/juhwanz/eshop-refac/issues/17), [#18](https://github.com/juhwanz/eshop-refac/issues/18), [#25](https://github.com/juhwanz/eshop-refac/issues/25)에서 보강할 예정입니다.
 
 ### 깊은 페이지 조회 사례
 
@@ -116,7 +116,7 @@ Offset 검색은 전체 개수를 위한 count query를 사용할 수 있고, No
 
 `.github/workflows/secret-scan.yml`은 모든 push, pull request와 수동 실행에서 동작합니다.
 
-- `repository-hygiene`: `mysql-data/`, binlog, 인증서와 private key 확장자의 Git 추적 차단
+- `repository-hygiene`: `mysql-data/`, `mariadb-data/`, binlog, 인증서와 private key 확장자의 Git 추적 차단
 - `gitleaks`: 전체 Git 이력의 비밀정보 패턴 검사
 
 ### Build and Publish Image
@@ -144,4 +144,4 @@ git diff --check
 git status --short
 ```
 
-Java, Gradle, 설정 또는 Flyway 변경은 가까운 테스트부터 실행하고 위험도에 따라 `unitTest`, `verifyChange`, `integrationTest` 순으로 범위를 넓힙니다.
+Java, Gradle 또는 설정 변경은 가까운 테스트부터 실행하고 위험도에 따라 `unitTest`, `verifyChange`, `integrationTest` 순으로 범위를 넓힙니다.

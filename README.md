@@ -8,7 +8,7 @@
 [![Secret Scan](https://github.com/juhwanz/eshop-refac/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/juhwanz/eshop-refac/actions/workflows/secret-scan.yml)
 ![Java](https://img.shields.io/badge/Java-21-E76F00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.0-6DB33F?logo=springboot&logoColor=white)
-![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)
+![MariaDB](https://img.shields.io/badge/MariaDB-11.8-003545?logo=mariadb&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-Redisson-DC382D?logo=redis&logoColor=white)
 
 [핵심 설계](#핵심-설계) · [빠른 시작](#빠른-시작) · [API](#api-요약) · [테스트](#테스트와-ci) · [상세 문서](#상세-문서)
@@ -25,7 +25,7 @@ E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건
 - 대기열, 캐시, 깊은 페이지 조회처럼 트래픽 증가 후 드러나는 문제를 함께 다룹니다.
 - 보안 검사와 안전한 테스트 범위를 CI에서 자동 검증합니다.
 
-> 이 문서는 2026-09-04 기준 구현 상태를 설명합니다. 진행 중인 개선 순서는 [로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 관리합니다.
+> 이 문서는 2026-09-05 기준 구현 상태를 설명합니다. 진행 중인 개선 순서는 [로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 관리합니다.
 
 ## 핵심 설계
 
@@ -47,7 +47,7 @@ flowchart LR
     Queue --> Idempotency[Redis idempotency key]
     Idempotency --> Lock[Redisson product lock]
     Lock --> Service[Order transaction]
-    Service --> MySQL[(MySQL)]
+    Service --> MariaDB[(MariaDB)]
     Service --> Event[ProductCacheEvictEvent]
     Event -->|AFTER_COMMIT| Redis[(Redis)]
 
@@ -63,8 +63,8 @@ flowchart LR
 |---|---|
 | Language | Java 21 |
 | Application | Spring Boot 3.3.0, Spring Web, Validation |
-| Persistence | Spring Data JPA, Hibernate, QueryDSL 5.1.0, Flyway |
-| Database | MySQL 8.0, H2(test) |
+| Persistence | Spring Data JPA, Hibernate, QueryDSL 5.1.0 |
+| Database | MariaDB 11.8, H2(test) |
 | Redis | Spring Data Redis, Redisson 3.31.0, ShedLock 5.13.0 |
 | Security | Spring Security, JWT(JJWT 0.11.5) |
 | Observability | Spring Boot Actuator, Micrometer |
@@ -94,16 +94,20 @@ cp .env.example .env
 `.env`에 로컬 환경 값을 설정합니다. 실제 비밀값은 Git에 추가하지 않습니다.
 
 ```dotenv
-DB_USERNAME=root
+DB_ROOT_PASSWORD=change-me-root
+DB_USERNAME=eshop
 DB_PASSWORD=change-me
+DB_PORT=3306
 JWT_SECRET_KEY=base64-encoded-random-key
 ```
 
-### 2. MySQL과 Redis 실행
+### 2. MariaDB와 Redis 실행
 
 ```bash
-docker compose up -d mysql redis
+docker compose up -d mariadb redis
 ```
+
+호스트의 3306 포트를 이미 사용 중이면 `.env`의 `DB_PORT`를 다른 값으로 변경할 수 있습니다. 컨테이너 간 통신은 항상 MariaDB의 3306 포트를 사용합니다.
 
 ### 3. 환경변수 로드 후 애플리케이션 실행
 
@@ -117,7 +121,7 @@ set +a
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health endpoint: <http://localhost:8080/actuator/health> (인증 없이 상태만 공개, 상세 정보 비공개)
 
-로컬 Compose의 `mysql-data/`는 개발자 런타임 데이터이며 Git에서 추적하지 않습니다. 자격 증명 원칙과 유출 대응은 [보안 문서](docs/security/credential-management.md)를 참고하세요.
+로컬 Compose는 기존 `mysql-data/`를 재사용하지 않고 `mariadb-data` named volume을 사용합니다. 자격 증명 원칙과 유출 대응은 [보안 문서](docs/security/credential-management.md)를 참고하세요.
 
 ## API 요약
 
@@ -146,7 +150,7 @@ set +a
 | 빠른 단위·슬라이스 테스트 | `./gradlew unitTest` | 없음 |
 | 단위 테스트 + 실행 JAR 검증 | `./gradlew verifyChange` | 없음 |
 | 통합·동시성 테스트 | `./gradlew integrationTest` | `localhost:6379` Redis |
-| 대량 데이터·깊은 페이지 실험 | `./gradlew stressTest -PallowStressTest` | 로컬 MySQL, 명시적 승인 필요 |
+| 대량 데이터·깊은 페이지 실험 | `./gradlew stressTest -PallowStressTest` | 로컬 MariaDB, 명시적 승인 필요 |
 
 현재 GitHub Actions는 다음을 수행합니다.
 
@@ -170,8 +174,8 @@ set +a
 
 - 완료: 자격 증명 정리와 저장소 이력 정제([#8](https://github.com/juhwanz/eshop-refac/issues/8), [#9](https://github.com/juhwanz/eshop-refac/issues/9))
 - 다음 보안 작업: 운영 설정 fail-fast와 Actuator 접근 정책([#14](https://github.com/juhwanz/eshop-refac/issues/14))
-- 검증 기반: MySQL·Redis Testcontainers 도입 후 CI 통합 테스트 연결([#16](https://github.com/juhwanz/eshop-refac/issues/16), [#15](https://github.com/juhwanz/eshop-refac/issues/15))
-- 스키마: 현재 `local`은 Hibernate `ddl-auto: update`, `prod`는 `validate`입니다. Flyway 정합성은 [#10](https://github.com/juhwanz/eshop-refac/issues/10)에서 개선 예정입니다.
+- 검증 기반: MariaDB·Redis Testcontainers 도입 후 CI 통합 테스트 연결([#16](https://github.com/juhwanz/eshop-refac/issues/16), [#15](https://github.com/juhwanz/eshop-refac/issues/15))
+- 스키마: 실제 운영 데이터가 없는 현재 단계에서는 `local`, `prod` 모두 Hibernate `ddl-auto: update`로 관리합니다. 전환 배경과 재검토 조건은 [#33](https://github.com/juhwanz/eshop-refac/issues/33)에 정리되어 있습니다.
 
 ## 상세 문서
 
@@ -180,6 +184,7 @@ set +a
 - [자격 증명 관리와 유출 대응](docs/security/credential-management.md)
 - [ADR 목록과 작성 규칙](docs/adr/README.md)
 - [ADR-0001: 운영 자격 증명 관리](docs/adr/0001-production-credential-management.md)
+- [ADR-0002: MariaDB와 Hibernate 자동 schema 관리](docs/adr/0002-use-mariadb-and-hibernate-schema-update.md)
 - [개선 로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)
 
 ## 프로젝트 구조

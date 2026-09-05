@@ -10,15 +10,15 @@ while IFS= read -r -d '' path; do
     basename="${lowercase_path##*/}"
 
     case "/$lowercase_path" in
-        */mysql-data/*)
-            violations+=("$path (MySQL runtime data directory)")
+        */mysql-data/*|*/mariadb-data/*)
+            violations+=("$path (database runtime data directory)")
             continue
             ;;
     esac
 
     case "$basename" in
         binlog|binlog.*|*.binlog|*.binlog.*)
-            violations+=("$path (MySQL binary log)")
+            violations+=("$path (database binary log)")
             continue
             ;;
     esac

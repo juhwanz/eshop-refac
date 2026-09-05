@@ -12,14 +12,13 @@
 - Java 21, Spring Boot, Gradle 기반의 단일 모듈 이커머스 백엔드다.
 - 기본 패키지는 `com.project.eshop_refact`다.
 - 핵심 관심사는 재고 정합성, 주문 멱등성, 동시성 제어, 조회 가용성, 캐시 정합성, 깊은 페이지 조회 성능이다.
-- 운영형 데이터베이스는 MySQL이며 Redis는 캐시, 분산 락, 멱등성, 대기열, ShedLock에 사용한다.
-- JPA/Hibernate, QueryDSL, Flyway, Spring Security, JWT, Actuator, SpringDoc을 사용한다.
+- 현재 데이터베이스는 MariaDB이며 Redis는 캐시, 분산 락, 멱등성, 대기열, ShedLock에 사용한다.
+- JPA/Hibernate, QueryDSL, Spring Security, JWT, Actuator, SpringDoc을 사용한다.
 
 ## 저장소 구조
 
 - `src/main/java/com/project/eshop_refact/domain`: 주문, 상품, 사용자, 대기열 도메인 코드
 - `src/main/java/com/project/eshop_refact/global`: 공통 설정, 보안, 예외, 인터셉터, 응답 타입
-- `src/main/resources/db/migration`: 버전이 부여된 Flyway 마이그레이션
 - `src/test/java/.../controller`: Spring MVC 슬라이스 테스트
 - `src/test/java/.../service`, `.../domain`: 서비스 단위 테스트와 도메인 테스트
 - `src/test/java/.../integration`: H2와 Redis를 사용하는 통합·동시성 테스트
@@ -42,7 +41,7 @@
 - 시스템 Gradle 대신 항상 Gradle Wrapper인 `./gradlew`를 사용한다.
 - 운영 의존성 추가가 아키텍처나 운영에 영향을 줄 수 있으면 먼저 필요성과 대안을 설명한다.
 - `build/generated/querydsl` 아래의 QueryDSL 생성 코드를 직접 수정하지 않는다.
-- `mysql-data/` 아래의 런타임 데이터를 수정하거나 Git에 추가하지 않는다.
+- `mysql-data/`, `mariadb-data/`와 Docker named volume의 런타임 데이터를 수정하거나 Git에 추가하지 않는다.
 - `build/`, IDE 메타데이터, `.DS_Store`, `__pycache__/`, 로그, 토큰, 로컬 비밀 설정을 커밋하지 않는다.
 - 사용자가 명시적으로 요청하지 않으면 커밋하거나 푸시하지 않는다. 요청받은 경우에도 작업 관련 경로만 포함하고 커밋과 대상 브랜치를 보고한다.
 
@@ -96,12 +95,10 @@
 - 사용자의 승인 없이 ADR을 생성하거나 아직 합의되지 않은 내용을 확정된 결정으로 기록하지 않는다.
 - 사소한 구현 선택이나 코드와 테스트만으로 의도가 충분히 드러나는 변경에는 ADR을 제안하지 않는다.
 
-## 영속성, QueryDSL, Flyway
+## 영속성, QueryDSL, schema 관리
 
-- MySQL 스키마는 Flyway가 관리하고 local/prod 성격의 프로필에서는 Hibernate `ddl-auto`를 `validate`로 유지한다.
-- 스키마 변경은 `V2__add_order_index.sql`처럼 새 마이그레이션으로 추가한다.
-- 이미 적용된 버전 마이그레이션은 수정하지 않고 새 버전으로 전진 적용한다.
-- local 또는 prod 스키마 변경에 `ddl-auto: update`, `create`, `create-drop`을 사용하지 않는다.
+- 실제 운영 데이터가 없는 현재 단계에서는 MariaDB 스키마를 Hibernate가 관리하고 local/prod 프로필에 `ddl-auto: update`를 사용한다.
+- 실제 운영 데이터가 생기거나 여러 환경의 schema version 관리가 필요해지면 Flyway 같은 migration 도구와 `ddl-auto: validate` 전환을 재검토한다.
 - H2의 `create-drop`은 격리된 테스트 설정에서만 사용한다.
 - 컬렉션 fetch join과 pageable을 함께 사용해 메모리 페이징이 발생하지 않도록 한다.
 - No-offset 페이지 조회를 변경할 때 커서 방향, 결정적인 정렬, 경계값, 지원 인덱스를 함께 검증한다.
@@ -112,7 +109,7 @@
 ### 빠른 검증
 
 - 변경 코드와 가장 가까운 테스트를 먼저 실행한다.
-- 일반적으로 실제 Redis나 MySQL 없이 실행할 수 있는 테스트 묶음은 다음과 같다.
+- 일반적으로 실제 Redis나 MariaDB 없이 실행할 수 있는 테스트 묶음은 다음과 같다.
 
 ```bash
 ./gradlew unitTest
@@ -137,7 +134,7 @@ docker compose up -d redis
 
 ### 부하 테스트 준비 도구
 
-- `src/test/java/.../stressTest` 아래 클래스는 `local` 프로필로 개발자 MySQL에 많은 데이터를 기록할 수 있다.
+- `src/test/java/.../stressTest` 아래 클래스는 `local` 프로필로 개발자 MariaDB에 많은 데이터를 기록할 수 있다.
 - 사용자가 부하 테스트 준비를 명시적으로 요청하거나 DB 변경을 승인하지 않으면 실행하지 않는다.
 - 스트레스 및 대량 데이터 테스트는 기본 `test`에서 제외되어 있다.
 - 실행 승인을 확인한 뒤에만 `./gradlew stressTest -PallowStressTest`를 사용한다.
@@ -155,7 +152,7 @@ docker compose up -d redis
 
 ## Codex 자동화
 
-- Java, Gradle, 설정, Flyway 변경에는 저장소 Skill인 `eshop-change-verification`을 활용한다.
+- Java, Gradle, 설정, schema 관리 변경에는 저장소 Skill인 `eshop-change-verification`을 활용한다.
 - 구현 후 가까운 테스트를 실행하고, 작업으로 인한 실패면 원인을 수정한 뒤 같은 검증을 다시 실행한다.
 - 외부 서비스 부재, 사용자 데이터 변경 가능성, 요청 범위를 벗어난 실패가 있으면 자동 반복을 멈추고 정확한 상태를 보고한다.
 - 저장소의 `Stop` Hook은 종료 전에 whitespace 오류, 민감 파일 추적, 새 비밀정보 패턴을 검사한다.
