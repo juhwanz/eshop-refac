@@ -132,6 +132,7 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 
 `.env`는 애플리케이션과 Docker Compose가 자동으로 읽습니다. Redis 자동 실행을 위해 Docker Desktop은 실행 중이어야 합니다.
 
+- API 진입점: <http://localhost:8080> (Swagger UI로 이동)
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health endpoint: <http://localhost:8080/actuator/health> (인증 없이 상태만 공개, 상세 정보 비공개)
 
