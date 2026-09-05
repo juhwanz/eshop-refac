@@ -40,7 +40,7 @@ services:
       - "8080:8080"
     environment:
       # application.yaml의 설정을 환경 변수로 덮어씌워 내부 컨테이너 통신을 연결합니다.
-      SPRING_DATASOURCE_URL: "jdbc:mariadb://mariadb:3306/eshop?timezone=Asia/Seoul"
+      SPRING_DATASOURCE_URL: "jdbc:mariadb://mariadb:3306/eshop"
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-eshop}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       SPRING_DATA_REDIS_HOST: redis
