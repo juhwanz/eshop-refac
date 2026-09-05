@@ -40,6 +40,7 @@ dependencies {
 	// 3. Database & Redis
 	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
 	// [중요] Redisson
 	implementation 'org.redisson:redisson-spring-boot-starter:3.31.0'

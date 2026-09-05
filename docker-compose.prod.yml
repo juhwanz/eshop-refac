@@ -19,7 +19,7 @@ services:
     env_file:
       - ./.env
     environment:
-      SPRING_DATASOURCE_URL: "jdbc:mariadb://${RDS_HOST:?RDS_HOST is required}:${DB_PORT:-3306}/eshop?timezone=Asia/Seoul"
+      SPRING_DATASOURCE_URL: "jdbc:mariadb://${RDS_HOST:?RDS_HOST is required}:${DB_PORT:-3306}/eshop"
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       SPRING_DATA_REDIS_HOST: redis
@@ -38,7 +38,7 @@ services:
     env_file:
       - ./.env
     environment:
-      SPRING_DATASOURCE_URL: "jdbc:mariadb://${RDS_HOST:?RDS_HOST is required}:${DB_PORT:-3306}/eshop?timezone=Asia/Seoul"
+      SPRING_DATASOURCE_URL: "jdbc:mariadb://${RDS_HOST:?RDS_HOST is required}:${DB_PORT:-3306}/eshop"
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       SPRING_DATA_REDIS_HOST: redis
