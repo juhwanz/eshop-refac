@@ -97,26 +97,24 @@ cp .env.example .env
 DB_ROOT_PASSWORD=change-me-root
 DB_USERNAME=eshop
 DB_PASSWORD=change-me
-DB_PORT=3306
+DB_PORT=3307
+REDIS_PORT=6380
 JWT_SECRET_KEY=base64-encoded-random-key
 ```
 
-### 2. MariaDB와 Redis 실행
+### 2. Docker Desktop 실행
+
+로컬 프로필로 애플리케이션을 실행하면 Spring Boot가 `docker-compose.dev.yml`의 MariaDB와 Redis를 자동으로 시작합니다. 애플리케이션을 종료하면 두 컨테이너도 함께 중지되며 MariaDB 데이터는 named volume에 보존됩니다.
+
+기본 개발 포트는 기존 로컬 서비스와의 충돌을 피하도록 MariaDB 3307, Redis 6380을 사용합니다. 다른 서비스가 해당 포트를 사용 중이면 `.env`의 `DB_PORT`, `REDIS_PORT`를 변경할 수 있습니다.
+
+### 3. 애플리케이션 실행
 
 ```bash
-docker compose up -d mariadb redis
-```
-
-호스트의 3306 포트를 이미 사용 중이면 `.env`의 `DB_PORT`를 다른 값으로 변경할 수 있습니다. 컨테이너 간 통신은 항상 MariaDB의 3306 포트를 사용합니다.
-
-### 3. 환경변수 로드 후 애플리케이션 실행
-
-```bash
-set -a
-source .env
-set +a
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
+
+`.env`는 애플리케이션과 Docker Compose가 자동으로 읽습니다. Docker Desktop은 실행 중이어야 합니다.
 
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health endpoint: <http://localhost:8080/actuator/health> (인증 없이 상태만 공개, 상세 정보 비공개)
