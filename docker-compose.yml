@@ -1,18 +1,25 @@
 services:
-  # 1. MySQL (Main DB)
-  mysql:
-    image: mysql:8.0
-    container_name: eshop-mysql
+  # 1. MariaDB (Main DB)
+  mariadb:
+    image: mariadb:11.8.6
+    container_name: eshop-mariadb
     restart: always
     ports:
-      - "3306:3306"
+      - "${DB_PORT:-3306}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
-      MYSQL_DATABASE: eshop
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
+      MARIADB_DATABASE: eshop
+      MARIADB_USER: ${DB_USERNAME:-eshop}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       TZ: Asia/Seoul
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-time-zone=+09:00
     volumes:
-      - ./mysql-data:/var/lib/mysql
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 2. Redis (Cache & Distributed Lock)
   redis:
@@ -33,12 +40,17 @@ services:
       - "8080:8080"
     environment:
       # application.yaml의 설정을 환경 변수로 덮어씌워 내부 컨테이너 통신을 연결합니다.
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/eshop?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-root}
+      SPRING_DATASOURCE_URL: "jdbc:mariadb://mariadb:3306/eshop?timezone=Asia/Seoul"
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-eshop}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_PROFILES_ACTIVE: local
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY is required}
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
     depends_on:
-      - mysql
-      - redis
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  mariadb-data:

@@ -51,6 +51,7 @@ tokens.csv
 
 ### Runtime data ###
 **/mysql-data/
+**/mariadb-data/
 
 # Database-generated certificates and keys
 *.pem

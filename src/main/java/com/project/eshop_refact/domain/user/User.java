@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 public class User {
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 50)
     private UserStatus status = UserStatus.ACTIVE;
 
 
@@ -27,10 +28,10 @@ public class User {
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String username;
 
-    @Column(nullable = false, name = "user_role")
+    @Column(nullable = false, name = "user_role", length = 50)
     @Enumerated(value = EnumType.STRING)
     private UserRoleEnum role;
 

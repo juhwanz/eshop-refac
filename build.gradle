@@ -38,7 +38,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 
 	// 3. Database & Redis
-	runtimeOnly 'com.mysql:mysql-connector-j'
+	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
 	// [중요] Redisson
@@ -72,9 +72,6 @@ dependencies {
 	// 모니터링을 위한 Actuator
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-	//Flyway
-	implementation 'org.flywaydb:flyway-core'
-	implementation 'org.flywaydb:flyway-mysql'
 }
 
 // 기존 QueryDSL 설정 다 지우고 이걸로 대체
@@ -102,7 +99,7 @@ tasks.named('test') {
 
 tasks.register('unitTest') {
 	group = 'verification'
-	description = '외부 Redis/MySQL 없이 실행할 수 있는 빠른 테스트를 실행합니다.'
+	description = '외부 Redis/MariaDB 없이 실행할 수 있는 빠른 테스트를 실행합니다.'
 	dependsOn tasks.named('test')
 }
 
@@ -121,7 +118,7 @@ tasks.register('integrationTest', Test) {
 
 tasks.register('stressTest', Test) {
 	group = 'verification'
-	description = '로컬 MySQL을 변경하거나 대량 데이터를 생성하는 테스트를 실행합니다.'
+	description = '로컬 MariaDB를 변경하거나 대량 데이터를 생성하는 테스트를 실행합니다.'
 	testClassesDirs = sourceSets.test.output.classesDirs
 	classpath = sourceSets.test.runtimeClasspath
 	useJUnitPlatform()

@@ -24,7 +24,7 @@ sequenceDiagram
     participant Redis
     participant Facade as RedissonLockStockFacade
     participant Service as OrderService
-    participant DB as MySQL
+    participant DB as MariaDB
 
     User->>Security: POST /api/orders
     Security->>Queue: 인증 사용자 전달
