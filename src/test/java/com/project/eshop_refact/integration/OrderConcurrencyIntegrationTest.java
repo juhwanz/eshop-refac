@@ -10,6 +10,7 @@ import com.project.eshop_refact.domain.user.UserRepository;
 import com.project.eshop_refact.domain.order.OrderService;
 import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import com.project.eshop_refact.domain.order.strategy.PessimisticLockStrategy;
+import com.project.eshop_refact.integration.support.MariaDbRedisIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ import static org.mockito.BDDMockito.given;
         "app.order.lock.wait-time=120",
         "logging.level.root=error"
 })
-public class OrderConcurrencyIntegrationTest {
+public class OrderConcurrencyIntegrationTest extends MariaDbRedisIntegrationTest {
 
     @Autowired private OrderService orderService;
     @Autowired private RedissonLockStockFacade redissonLockStockFacade;
@@ -105,7 +106,8 @@ public class OrderConcurrencyIntegrationTest {
             });
         }
 
-        latch.await();
+        assertThat(latch.await(2, TimeUnit.MINUTES)).isTrue();
+        executorService.shutdownNow();
 
         // Then
         Product updatedProduct = productRepository.findById(productId).orElseThrow();
@@ -208,7 +210,8 @@ public class OrderConcurrencyIntegrationTest {
             });
         }
 
-        latch.await();
+        assertThat(latch.await(2, TimeUnit.MINUTES)).isTrue();
+        executorService.shutdownNow();
         return System.currentTimeMillis() - startTime;
     }
 

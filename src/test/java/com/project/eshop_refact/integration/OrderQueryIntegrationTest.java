@@ -1,5 +1,6 @@
 package com.project.eshop_refact.integration;
 
+import com.project.eshop_refact.integration.support.MariaDbRedisIntegrationTest;
 import com.project.eshop_refact.domain.order.Order;
 import com.project.eshop_refact.domain.order.OrderItem;
 import com.project.eshop_refact.domain.product.Product;
@@ -34,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.jpa.properties.hibernate.default_batch_fetch_size=100"
 })
 @Transactional
-public class OrderQueryIntegrationTest {
+public class OrderQueryIntegrationTest extends MariaDbRedisIntegrationTest {
 
     @Autowired OrderRepository orderRepository;
     @Autowired OrderService orderService;

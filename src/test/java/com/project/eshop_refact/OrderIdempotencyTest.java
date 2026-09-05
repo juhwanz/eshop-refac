@@ -2,11 +2,14 @@ package com.project.eshop_refact;
 
 import com.project.eshop_refact.domain.order.OrderDto;
 import com.project.eshop_refact.domain.order.OrderIdempotencyService;
+import com.project.eshop_refact.domain.order.OrderRepository;
 import com.project.eshop_refact.domain.product.Product;
 import com.project.eshop_refact.domain.product.ProductRepository;
 import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.domain.user.UserRepository;
 import com.project.eshop_refact.domain.user.UserRoleEnum;
+import com.project.eshop_refact.integration.support.MariaDbRedisIntegrationTest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,18 +27,26 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
  * 중복으로 처리되지 않고 1회만 안전하게 처리됨을 검증합니다.
  */
 @SpringBootTest
-public class OrderIdempotencyTest {
+public class OrderIdempotencyTest extends MariaDbRedisIntegrationTest {
 
     @Autowired
     private OrderIdempotencyService orderIdempotencyService;
     @Autowired private RedisTemplate<String, String> redisTemplate;
     @Autowired private UserRepository userRepository;
     @Autowired private ProductRepository productRepository;
+    @Autowired private OrderRepository orderRepository;
 
     @BeforeEach
     void setup(){
         // 독립적인 테스트 환경 구성을 위한 Redis 초기화
         redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
+    }
+
+    @AfterEach
+    void tearDown() {
+        orderRepository.deleteAll();
+        productRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Test

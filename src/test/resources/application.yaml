@@ -1,11 +1,4 @@
 spring:
-
-  datasource:
-    url: jdbc:h2:mem:testdb;MODE=MariaDB;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -13,11 +6,11 @@ spring:
       hibernate:
         show_sql: true
         format_sql: true
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.MariaDBDialect
 
   data:
     redis:
-      # 향후 Testcontainers 또는 Embedded Redis 도입을 위한 환경변수 처리
+      # 통합 테스트에서는 Testcontainers가 동적 host/port를 주입합니다.
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 test:

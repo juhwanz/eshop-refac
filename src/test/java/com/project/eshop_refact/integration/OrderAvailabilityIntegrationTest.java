@@ -7,14 +7,15 @@ import com.project.eshop_refact.domain.order.RedissonLockStockFacade;
 import com.project.eshop_refact.domain.order.OrderRepository;
 import com.project.eshop_refact.domain.product.ProductRepository;
 import com.project.eshop_refact.domain.user.UserRepository;
-import com.project.eshop_refact.domain.product.ProductService;
+import com.project.eshop_refact.integration.support.MariaDbRedisIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -39,11 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "app.order.lock.wait-time=30"
 })
 @ActiveProfiles("test")
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
-public class OrderAvailabilityIntegrationTest {
+public class OrderAvailabilityIntegrationTest extends MariaDbRedisIntegrationTest {
 
-    @Autowired
-    private ProductService productService;
     @Autowired
     private RedissonLockStockFacade redissonLockStockFacade;
     @Autowired
@@ -52,6 +50,8 @@ public class OrderAvailabilityIntegrationTest {
     private ProductRepository productRepository;
     @Autowired
     private OrderRepository orderRepository;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @AfterEach
     void tearDown() {
@@ -67,7 +67,7 @@ public class OrderAvailabilityIntegrationTest {
         // 트랜잭션 내부에서 대기 시간(지연)이 발생하여 커넥션 풀이 빠르게 고갈됩니다.
         // 이로 인해 락과 무관한 '단순 조회' 요청마저 커넥션 타임아웃으로 실패해야 합니다.
         System.out.println("\n========== [1. DB 비관적 락 테스트 시작] ==========");
-        TestResult dbResult = runTest("DB 비관적 락", (id, pid) -> productService.decreaseStock(pid, 1));
+        TestResult dbResult = runTest("DB 비관적 락", (id, pid) -> decreaseStockWhileHoldingConnection(pid));
 
         assertThat(dbResult.remainingStock()).isGreaterThan(50);
         assertThat(dbResult.viewFailCount()).isGreaterThan(0); // 커넥션 고갈에 따른 조회 장애 발생 검증
@@ -85,6 +85,19 @@ public class OrderAvailabilityIntegrationTest {
     }
 
     record TestResult(int remainingStock, int viewFailCount) {
+    }
+
+    private void decreaseStockWhileHoldingConnection(Long productId) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            Product product = productRepository.findByIdWithPessimisticLock(productId).orElseThrow();
+            try {
+                Thread.sleep(150);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("DB connection 점유 시뮬레이션이 중단됐습니다.", exception);
+            }
+            product.removeStock(1);
+        });
     }
 
     private TestResult runTest(String method, StockStrategy strategy) throws InterruptedException {
@@ -130,7 +143,8 @@ public class OrderAvailabilityIntegrationTest {
             });
         }
 
-        latch.await();
+        assertThat(latch.await(2, java.util.concurrent.TimeUnit.MINUTES)).isTrue();
+        executor.shutdownNow();
         long time = System.currentTimeMillis() - start;
 
         Product finalProduct = productRepository.findById(product.getId()).orElseThrow();
