@@ -115,7 +115,7 @@ set +a
 ```
 
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
-- Health endpoint: <http://localhost:8080/actuator/health> (현재 정책상 JWT 인증 필요)
+- Health endpoint: <http://localhost:8080/actuator/health> (인증 없이 상태만 공개, 상세 정보 비공개)
 
 로컬 Compose의 `mysql-data/`는 개발자 런타임 데이터이며 Git에서 추적하지 않습니다. 자격 증명 원칙과 유출 대응은 [보안 문서](docs/security/credential-management.md)를 참고하세요.
 
@@ -163,6 +163,8 @@ set +a
 - `deploy.sh`: 새 컨테이너 실행, Nginx upstream 전환, 이전 컨테이너 종료
 
 현재 CI는 Docker 이미지 게시까지만 자동화합니다. `deploy.sh`를 원격 서버에서 실행하는 단계는 GitHub Actions에 연결되어 있지 않습니다.
+
+운영 프로필은 `DB_PASSWORD`와 `JWT_SECRET_KEY`가 비어 있으면 기동에 실패합니다. Actuator는 `/actuator/health`만 노출하며, 그 외 운영 endpoint는 외부 요청을 차단합니다.
 
 ## 현재 상태와 다음 개선
 

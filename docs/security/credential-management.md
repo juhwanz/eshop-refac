@@ -26,6 +26,13 @@
 - EC2의 `.env`는 배포 사용자만 읽을 수 있도록 권한을 제한한다.
 - Docker Hub access token과 EC2 SSH key는 GitHub Actions secret으로 관리한다.
 - 자격 증명을 교체할 때는 새 값 배포와 상태 확인을 마친 뒤 기존 값을 폐기한다.
+- `prod` 프로필은 `DB_PASSWORD`와 `JWT_SECRET_KEY`가 없거나 공백이면 명확한 오류와 함께 기동을 중단한다.
+
+## 운영 endpoint
+
+- 외부에는 `/actuator/health`만 공개하고 응답의 상세 구성 요소는 숨긴다.
+- `/actuator/metrics`를 포함한 나머지 Actuator endpoint는 노출하지 않고 Spring Security에서도 차단한다.
+- 운영 모니터링을 확장할 때는 endpoint를 공개하기 전에 별도의 인증 또는 내부망 접근 정책을 먼저 적용한다.
 
 ## JWT 서명키 교체
 

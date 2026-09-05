@@ -16,8 +16,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Arrays;
-
 /**
  * JWT 기반 커스텀 인증 필터
  * HTTP 요청의 Authorization 헤더에서 JWT를 추출하여 유효성, 토큰 타입,
@@ -36,9 +34,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request){
-        String[] excludePath = {"/api/users/signup", "/api/users/login", "/api/users/reissue", "/v3/api-docs", "/swagger-ui", "/actuator"};
         String path = request.getRequestURI();
-        return Arrays.stream(excludePath).anyMatch(path::startsWith);
+        return path.equals("/api/users/signup")
+                || path.equals("/api/users/login")
+                || path.equals("/api/users/reissue")
+                || path.startsWith("/v3/api-docs")
+                || path.startsWith("/swagger-ui")
+                || path.equals("/actuator/health")
+                || path.startsWith("/actuator/health/");
     }
 
     @Override
