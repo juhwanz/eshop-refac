@@ -8,7 +8,7 @@
 |---|---|---|---|
 | `test`, `unitTest` | 도메인, 서비스, MVC slice, JWT 단위 테스트 | 없음 | 기본 |
 | `verifyChange` | `unitTest` + `bootJar` | 없음 | CI |
-| `integrationTest` | Spring Context, 캐시, 동시성, 조회 통합 테스트 | H2 + localhost Redis | 별도 |
+| `integrationTest` | Spring Context, 캐시, 동시성, 조회 통합 테스트 | Docker | 별도 |
 | `stressTest` | 대량 데이터와 깊은 페이지 실험 | local 프로필 MariaDB | 명시적 승인 필요 |
 
 `test`와 `unitTest`에서는 다음 항목을 제외합니다.
@@ -34,18 +34,13 @@
 ./gradlew verifyChange
 ```
 
-### Redis 통합 테스트
+### MariaDB·Redis 통합 테스트
 
 ```bash
-docker compose up -d redis
 ./gradlew integrationTest
 ```
 
-Redis 연결 실패는 Java 코드 실패와 구분해야 합니다. 통합 테스트 종료 후 개발 중인 Redis를 계속 사용할 필요가 없다면 해당 서비스만 내릴 수 있습니다.
-
-```bash
-docker compose stop redis
-```
+Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동적 접속 정보를 주입합니다. 개발자 로컬 MariaDB·Redis는 사용하지 않으며 컨테이너는 Gradle 테스트 JVM 안에서 공유하고 실행이 끝나면 폐기합니다. Docker가 꺼져 있거나 이미지를 받을 수 없으면 컨테이너 시작 단계에서 인프라 오류로 실패합니다.
 
 ### 대량 데이터 실험
 
@@ -135,7 +130,7 @@ checkout
 - `verifyChange`는 `integrationTest`를 포함하지 않습니다.
 - workflow가 Redis 서비스를 시작하지만 현재 실행 task에서는 Redis를 사용하지 않습니다.
 - Docker 이미지 게시는 자동이지만 원격 서버의 `deploy.sh` 실행은 자동화되어 있지 않습니다.
-- Testcontainers 기반 통합 테스트와 CI 연결은 [#16](https://github.com/juhwanz/eshop-refac/issues/16), [#15](https://github.com/juhwanz/eshop-refac/issues/15)에서 진행할 예정입니다.
+- Testcontainers 기반 통합 테스트는 [#16](https://github.com/juhwanz/eshop-refac/issues/16), CI 연결은 [#15](https://github.com/juhwanz/eshop-refac/issues/15)에서 추적합니다.
 
 ## 변경 완료 전 확인
 

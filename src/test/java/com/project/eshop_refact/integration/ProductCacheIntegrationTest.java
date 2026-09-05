@@ -4,6 +4,8 @@ import com.project.eshop_refact.domain.product.Product;
 import com.project.eshop_refact.domain.product.ProductDto;
 import com.project.eshop_refact.domain.product.ProductRepository;
 import com.project.eshop_refact.domain.product.ProductService;
+import com.project.eshop_refact.integration.support.MariaDbRedisIntegrationTest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Cache-Aside 패턴에서의 데이터 조회(Put) 및 데이터 변경 시 무효화(Evict) 라이프사이클을 검증합니다.
  */
 @SpringBootTest
-public class ProductCacheIntegrationTest {
+public class ProductCacheIntegrationTest extends MariaDbRedisIntegrationTest {
 
     @Autowired private ProductService productService;
     @Autowired private ProductRepository productRepository;
@@ -31,6 +33,11 @@ public class ProductCacheIntegrationTest {
     void clearCache(){
         Cache cache = cacheManager.getCache("products");
         if(cache != null) cache.clear();
+    }
+
+    @AfterEach
+    void tearDown() {
+        productRepository.deleteAll();
     }
 
     @Test

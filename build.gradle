@@ -8,6 +8,8 @@ group = 'com.demo'
 version = '0.0.1-SNAPSHOT'
 description = 'Demo project for Spring Boot'
 
+ext['testcontainers.version'] = '1.21.4'
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(21)
@@ -62,6 +64,8 @@ dependencies {
 	// 7. Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:mariadb'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testRuntimeOnly 'com.h2database:h2'
 
@@ -106,7 +110,7 @@ tasks.register('unitTest') {
 
 tasks.register('integrationTest', Test) {
 	group = 'verification'
-	description = 'H2와 로컬 Redis를 사용하는 통합·동시성 테스트를 실행합니다.'
+	description = 'Testcontainers의 MariaDB와 Redis를 사용하는 통합·동시성 테스트를 실행합니다.'
 	testClassesDirs = sourceSets.test.output.classesDirs
 	classpath = sourceSets.test.runtimeClasspath
 	useJUnitPlatform()

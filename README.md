@@ -163,7 +163,7 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 |---|---|---|
 | 빠른 단위·슬라이스 테스트 | `./gradlew unitTest` | 없음 |
 | 단위 테스트 + 실행 JAR 검증 | `./gradlew verifyChange` | 없음 |
-| 통합·동시성 테스트 | `./gradlew integrationTest` | `localhost:6379` Redis |
+| 통합·동시성 테스트 | `./gradlew integrationTest` | Docker(Testcontainers MariaDB·Redis) |
 | 대량 데이터·깊은 페이지 실험 | `./gradlew stressTest -PallowStressTest` | 로컬 MariaDB, 명시적 승인 필요 |
 
 현재 GitHub Actions는 다음을 수행합니다.
@@ -172,7 +172,7 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 - `main` 대상 PR: `./gradlew clean verifyChange`
 - `main` push: 동일 검증 후 Docker Hub에 `hongjuhwan/eshop-app:latest` 게시
 
-`integrationTest`는 아직 CI에 연결되지 않았습니다. 테스트 분리 기준, 재현 방법과 기존 실험 결과는 [테스트와 검증](docs/testing.md)을 참고하세요.
+`integrationTest`는 로컬 DB나 Redis를 미리 실행하지 않아도 되며, 아직 CI에는 연결되지 않았습니다. 테스트 분리 기준, 재현 방법과 기존 실험 결과는 [테스트와 검증](docs/testing.md)을 참고하세요.
 
 ## 배포 구성
 

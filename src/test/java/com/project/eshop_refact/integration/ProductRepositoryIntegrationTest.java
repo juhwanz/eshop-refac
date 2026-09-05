@@ -4,10 +4,12 @@ import com.project.eshop_refact.global.config.QueryDslConfig;
 import com.project.eshop_refact.domain.product.Product;
 import com.project.eshop_refact.domain.product.ProductDto;
 import com.project.eshop_refact.domain.product.ProductRepository;
+import com.project.eshop_refact.integration.support.MariaDbRedisIntegrationTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,8 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * QueryDSL을 활용한 복합 조건 동적 쿼리와 No-Offset(Cursor) 기반 페이징 로직의 정합성을 검증합니다.
  */
 @DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(QueryDslConfig.class) // QueryDSL JPAQueryFactory 빈 주입을 위한 설정 로드
-public class ProductRepositoryIntegrationTest {
+public class ProductRepositoryIntegrationTest extends MariaDbRedisIntegrationTest {
 
     @Autowired
     ProductRepository productRepository;
