@@ -16,7 +16,7 @@
 - Flyway 의존성, 설정과 기존 migration 파일을 제거한다.
 - 실제 운영 데이터가 없는 현재 단계에서는 `local`, `prod` 프로필 모두 Hibernate `ddl-auto: update`로 schema를 관리한다.
 - 격리된 H2 테스트는 `MODE=MariaDB`, `ddl-auto: create-drop`을 사용한다.
-- 로컬 개발에서는 Spring Boot Docker Compose 지원과 개발 전용 Compose 파일로 MariaDB와 Redis를 애플리케이션 생명주기에 맞춰 시작·중지한다.
+- 로컬 개발에서는 기존 호스트 MariaDB를 사용하고, Spring Boot Docker Compose 지원으로 Redis만 애플리케이션 생명주기에 맞춰 시작·중지한다.
 - 기존 MySQL 데이터 디렉터리는 MariaDB 데이터 영역으로 재사용하거나 자동 삭제하지 않는다.
 - 실제 운영 데이터가 생기거나 여러 환경의 schema version 관리가 필요해지면 Flyway 같은 migration 도구와 `ddl-auto: validate` 전환을 다시 결정한다.
 
@@ -29,7 +29,7 @@
 ## 결과
 
 - 엔티티 변경을 빈 MariaDB에 빠르게 반영할 수 있고 datasource 및 배포 설정이 단순해진다.
-- 개발 인프라는 애플리케이션 실행 시 준비되고 종료 시 중지되며 MariaDB 데이터는 named volume에 보존된다.
+- 로컬 MariaDB 데이터를 기존 관리 방식으로 확인할 수 있고 Redis 컨테이너는 애플리케이션 실행 시간에만 동작한다.
 - 기존 MySQL 데이터의 이관과 Flyway 이력 보존은 지원하지 않는다.
 - `ddl-auto: update`는 파괴적 변경, rollback, 배포 간 순서 제어를 보장하지 않으므로 실제 데이터가 생긴 뒤에는 사용할 수 없다.
 - blue/green 인스턴스가 동시에 schema를 변경하지 않도록 schema 변경 배포 시 기동 순서를 관리해야 한다.

@@ -94,32 +94,48 @@ cp .env.example .env
 `.env`에 로컬 환경 값을 설정합니다. 실제 비밀값은 Git에 추가하지 않습니다.
 
 ```dotenv
-DB_ROOT_PASSWORD=change-me-root
 DB_USERNAME=eshop
 DB_PASSWORD=change-me
-DB_PORT=3307
+DB_PORT=3306
 REDIS_PORT=6380
 JWT_SECRET_KEY=base64-encoded-random-key
 ```
 
-### 2. Docker Desktop 실행
+### 2. 로컬 MariaDB 준비
 
-로컬 프로필로 애플리케이션을 실행하면 Spring Boot가 `docker-compose.dev.yml`의 MariaDB와 Redis를 자동으로 시작합니다. 애플리케이션을 종료하면 두 컨테이너도 함께 중지되며 MariaDB 데이터는 named volume에 보존됩니다.
+최초 한 번 로컬 MariaDB에 application database와 사용자를 준비합니다. SQL의 비밀번호는 `.env`의 `DB_PASSWORD`와 같아야 합니다.
 
-기본 개발 포트는 기존 로컬 서비스와의 충돌을 피하도록 MariaDB 3307, Redis 6380을 사용합니다. 다른 서비스가 해당 포트를 사용 중이면 `.env`의 `DB_PORT`, `REDIS_PORT`를 변경할 수 있습니다.
+```bash
+sudo mariadb
+```
 
-### 3. 애플리케이션 실행
+```sql
+CREATE DATABASE IF NOT EXISTS eshop CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'eshop'@'localhost' IDENTIFIED BY 'change-me';
+ALTER USER 'eshop'@'localhost' IDENTIFIED BY 'change-me';
+GRANT ALL PRIVILEGES ON eshop.* TO 'eshop'@'localhost';
+FLUSH PRIVILEGES;
+exit;
+```
+
+로컬 프로필로 애플리케이션을 실행하면 Hibernate가 필요한 테이블을 생성하거나 갱신합니다.
+
+### 3. Docker Desktop 실행
+
+Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 애플리케이션 종료 시 함께 중지합니다. 기본 Redis 포트는 다른 프로젝트와의 충돌을 피하도록 6380을 사용하며, 필요하면 `.env`의 `REDIS_PORT`를 변경할 수 있습니다.
+
+### 4. 애플리케이션 실행
 
 ```bash
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-`.env`는 애플리케이션과 Docker Compose가 자동으로 읽습니다. Docker Desktop은 실행 중이어야 합니다.
+`.env`는 애플리케이션과 Docker Compose가 자동으로 읽습니다. Redis 자동 실행을 위해 Docker Desktop은 실행 중이어야 합니다.
 
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health endpoint: <http://localhost:8080/actuator/health> (인증 없이 상태만 공개, 상세 정보 비공개)
 
-로컬 Compose는 기존 `mysql-data/`를 재사용하지 않고 `mariadb-data` named volume을 사용합니다. 자격 증명 원칙과 유출 대응은 [보안 문서](docs/security/credential-management.md)를 참고하세요.
+로컬 MariaDB 데이터는 기존 MariaDB 저장공간을 사용합니다. 자격 증명 원칙과 유출 대응은 [보안 문서](docs/security/credential-management.md)를 참고하세요.
 
 ## API 요약
 
