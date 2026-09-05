@@ -3,7 +3,9 @@ package com.project.eshop_refact.global.exception;
 import com.project.eshop_refact.global.common.ErrorResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -45,6 +47,22 @@ public class GlobalExceptionHandler {
         ErrorCode errorCode = ErrorCode.INVALID_INPUT_VALUE;
 
         return new ResponseEntity<>(ErrorResponse.of(errorCode,message), errorCode.getHttpStatus());
+    }
+
+    /**
+     * 지원하지 않는 HTTP 메서드 요청을 405 응답으로 변환합니다.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    protected ResponseEntity<ErrorResponse> handleMethodNotSupportedException(HttpRequestMethodNotSupportedException e) {
+        log.warn("HTTP Method Not Supported : {}", e.getMessage());
+
+        ErrorCode errorCode = ErrorCode.METHOD_NOT_ALLOWED;
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(errorCode.getHttpStatus());
+        if (e.getSupportedHttpMethods() != null) {
+            response.allow(e.getSupportedHttpMethods().toArray(HttpMethod[]::new));
+        }
+
+        return response.body(ErrorResponse.of(errorCode));
     }
 
     /**

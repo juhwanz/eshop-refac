@@ -4,6 +4,7 @@ import com.project.eshop_refact.global.interceptor.QueueInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -15,6 +16,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final QueueInterceptor queueInterceptor;
+
+    /**
+     * 브라우저로 루트 경로에 접근하면 API 문서로 안내합니다.
+     */
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        registry.addRedirectViewController("/", "/swagger-ui.html");
+    }
 
     /**
      * 대기열 인터셉터 등록

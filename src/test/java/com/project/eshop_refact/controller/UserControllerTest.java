@@ -18,6 +18,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -57,6 +59,15 @@ class UserControllerTest {
     RedisTemplate<String, String> redisTemplate;
 
     @Test
+    @DisplayName("루트 경로 접근: Swagger UI로 리다이렉트")
+    @WithMockUser
+    void root_redirects_to_swagger_ui() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/swagger-ui.html"));
+    }
+
+    @Test
     @DisplayName("회원가입 성공: 201 상태코드 반환")
     @WithMockUser // 컨트롤러 접근 권한 검증을 통과하기 위한 Mock 인증 객체 주입
     void signup_success() throws Exception {
@@ -74,6 +85,18 @@ class UserControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("회원가입 성공"))
                 .andDo(print());
+    }
+
+    @Test
+    @DisplayName("회원가입 실패: GET 요청은 405와 허용 메서드를 반환")
+    @WithMockUser
+    void signup_fail_method_not_allowed() throws Exception {
+        mockMvc.perform(get("/api/users/signup"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string(HttpHeaders.ALLOW, "POST"))
+                .andExpect(jsonPath("$.status").value(405))
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.message").value("지원하지 않는 HTTP 메서드입니다."));
     }
 
     @Test
