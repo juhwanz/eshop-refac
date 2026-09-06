@@ -6,20 +6,12 @@ on:
   pull_request:
     branches: [ "main" ]
 
-jobs:
-  build-and-publish:
-    runs-on: ubuntu-latest
+permissions:
+  contents: read
 
-    services:
-      redis:
-        image: redis:7
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+jobs:
+  verify:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
@@ -38,17 +30,40 @@ jobs:
       - name: Verify with Gradle
         run: ./gradlew clean verifyChange
 
+      - name: Run Integration Tests
+        run: ./gradlew integrationTest
+
+      - name: Upload Test Reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-test-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    if: github.event_name == 'push'
+    needs: verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
       - name: Login to DockerHub
-        if: github.event_name == 'push'
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and Push Docker Image
-        if: github.event_name == 'push'
         uses: docker/build-push-action@v4
         with:
           context: .
           push: true
-          tags: hongjuhwan/eshop-app:latest
+          tags: |
+            hongjuhwan/eshop-app:${{ github.sha }}
+            hongjuhwan/eshop-app:latest
