@@ -80,4 +80,23 @@ public class OrderTest {
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CANNOT_CANCEL_ORDER);
     }
+
+    @Test
+    @DisplayName("이미 취소된 주문은 다시 취소할 수 없고 재고도 다시 복구되지 않는다")
+    void cannotCancelAlreadyCancelledOrder() {
+        // Given
+        User user = new User("test@test.com", "1234", "tester", UserRoleEnum.USER);
+        Product product = new Product("신발", 10000, 100);
+        product.removeStock(2);
+        OrderItem orderItem = OrderItem.createOrderItem(product, 2);
+        Order order = Order.createOrder(user, List.of(orderItem));
+        order.cancel();
+
+        // When & Then
+        assertThatThrownBy(order::cancel)
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.CANNOT_CANCEL_ORDER);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
+        assertThat(product.getStockQuantity()).isEqualTo(100);
+    }
 }

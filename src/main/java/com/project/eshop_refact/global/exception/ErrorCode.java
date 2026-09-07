@@ -35,7 +35,7 @@ public enum ErrorCode {
 
     // --- Order ---
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 주문을 찾을 수 없습니다."),
-    CANNOT_CANCEL_ORDER(HttpStatus.BAD_REQUEST, "이미 배송이 완료되어 주문을 취소할 수 없습니다."),
+    CANNOT_CANCEL_ORDER(HttpStatus.BAD_REQUEST, "현재 주문 상태에서는 주문을 취소할 수 없습니다."),
 
     // --- Queue ---
     QUEUE_WAITING(HttpStatus.TOO_MANY_REQUESTS, "현재 접속량이 많아 대기 중입니다. 잠시 후 다시 시도해 주세요.");
