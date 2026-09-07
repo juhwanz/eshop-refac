@@ -83,7 +83,7 @@ Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동�
 | DB 비관적 락 | 418ms | 0 | 20 |
 | Redis 분산 락 | 8,766ms | 20 | 0 |
 
-테스트는 AOP로 트랜잭션 내부 지연을 주입해 커넥션 풀이 작은 상황을 재현합니다. 이 결과는 Redis 방식이 무조건 빠르다는 뜻이 아니라, 락 대기를 DB 밖으로 옮겼을 때 조회 커넥션을 보존할 수 있음을 보여줍니다.
+테스트는 DB 경로에서 비관적 락 트랜잭션이 작은 커넥션 풀 전체를 점유하도록 동기화하고, Redis 경로에는 AOP 지연을 주입해 락 대기가 트랜잭션 밖에서 발생하도록 재현합니다. 이 결과는 Redis 방식이 무조건 빠르다는 뜻이 아니라, 락 대기를 DB 밖으로 옮겼을 때 조회 커넥션을 보존할 수 있음을 보여줍니다.
 
 ### 락 비용 비교 사례
 
@@ -122,15 +122,20 @@ Offset 검색은 전체 개수를 위한 count query를 사용할 수 있고, No
 checkout
   → JDK 21
   → ./gradlew clean verifyChange
-  → main push일 때만 Docker Hub 로그인과 이미지 게시
+  → ./gradlew integrationTest
+  → main push일 때만 Docker Hub 로그인
+  → commit SHA와 latest 태그로 이미지 게시
 ```
 
-현재 주의점:
+검증과 게시 경계:
 
-- `verifyChange`는 `integrationTest`를 포함하지 않습니다.
-- workflow가 Redis 서비스를 시작하지만 현재 실행 task에서는 Redis를 사용하지 않습니다.
+- `verifyChange`는 빠른 테스트와 실행 JAR를 검증하고, CI가 다음 단계에서 `integrationTest`를 별도로 실행합니다.
+- 통합 테스트는 GitHub-hosted runner의 Docker에서 Testcontainers로 MariaDB와 Redis를 시작하므로 별도 service container를 사용하지 않습니다.
+- 테스트가 실패하면 Gradle XML 결과와 HTML 보고서를 7일간 artifact로 보존합니다.
+- 이미지 게시 job은 검증 job에 의존하며, 검증에 실패하거나 PR에서 실행될 때는 Docker Hub 자격 증명을 사용하지 않습니다.
+- main push 이미지는 commit SHA로 추적하며 기존 사용자를 위해 `latest`도 함께 게시합니다.
 - Docker 이미지 게시는 자동이지만 원격 서버의 `deploy.sh` 실행은 자동화되어 있지 않습니다.
-- Testcontainers 기반 통합 테스트는 [#16](https://github.com/juhwanz/eshop-refac/issues/16), CI 연결은 [#15](https://github.com/juhwanz/eshop-refac/issues/15)에서 추적합니다.
+- Testcontainers 기반 통합 테스트 도입은 [#16](https://github.com/juhwanz/eshop-refac/issues/16), CI 연결은 [#15](https://github.com/juhwanz/eshop-refac/issues/15)에서 추적합니다.
 
 ## 변경 완료 전 확인
 

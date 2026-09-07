@@ -170,10 +170,11 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 현재 GitHub Actions는 다음을 수행합니다.
 
 - 모든 push와 PR: 금지 경로 검사, 전체 이력 Gitleaks 검사
-- `main` 대상 PR: `./gradlew clean verifyChange`
-- `main` push: 동일 검증 후 Docker Hub에 `hongjuhwan/eshop-app:latest` 게시
+- `main` 대상 PR과 `main` push: `./gradlew clean verifyChange` 후 Testcontainers 기반 `./gradlew integrationTest`
+- 검증 실패: Gradle 테스트 결과와 HTML 보고서를 7일간 artifact로 보존
+- `main` push: 모든 검증 성공 후 Docker Hub에 commit SHA 태그와 보조 `latest` 태그 게시
 
-`integrationTest`는 로컬 DB나 Redis를 미리 실행하지 않아도 되며, 아직 CI에는 연결되지 않았습니다. 테스트 분리 기준, 재현 방법과 기존 실험 결과는 [테스트와 검증](docs/testing.md)을 참고하세요.
+`integrationTest`는 로컬이나 CI에 MariaDB·Redis를 미리 실행하지 않아도 됩니다. Testcontainers가 실행 환경의 Docker로 격리된 컨테이너를 시작합니다. 테스트 분리 기준, 재현 방법과 기존 실험 결과는 [테스트와 검증](docs/testing.md)을 참고하세요.
 
 ## 배포 구성
 
@@ -200,6 +201,7 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 - [ADR 목록과 작성 규칙](docs/adr/README.md)
 - [ADR-0001: 운영 자격 증명 관리](docs/adr/0001-production-credential-management.md)
 - [ADR-0002: MariaDB와 Hibernate 자동 schema 관리](docs/adr/0002-use-mariadb-and-hibernate-schema-update.md)
+- [ADR-0003: CI 검증 성공 후 commit SHA 이미지 게시](docs/adr/0003-gate-image-publishing-on-ci-verification.md)
 - [개선 로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)
 
 ## 프로젝트 구조
