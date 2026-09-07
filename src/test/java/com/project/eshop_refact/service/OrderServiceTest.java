@@ -2,6 +2,7 @@ package com.project.eshop_refact.service;
 
 import com.project.eshop_refact.domain.order.*;
 import com.project.eshop_refact.domain.product.Product;
+import com.project.eshop_refact.domain.product.ProductCacheEvictEvent;
 import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.domain.user.UserRoleEnum;
 import com.project.eshop_refact.global.exception.BusinessException;
@@ -27,6 +28,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -150,7 +153,7 @@ public class OrderServiceTest {
 
         assertThat(product.getStockQuantity()).isEqualTo(3);
 
-        given(orderRepository.findById(10L)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(10L)).willReturn(Optional.of(order));
 
         // When
         orderService.cancelOrder(10L, 1L);
@@ -159,6 +162,28 @@ public class OrderServiceTest {
         // 취소 로직 내부에서 도메인 메서드(addStock)가 호출되어 재고가 정상 복구되었는지 확인
         assertThat(product.getStockQuantity()).isEqualTo(5);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
+        verify(eventPublisher).publishEvent(any(ProductCacheEvictEvent.class));
+    }
+
+    @Test
+    @DisplayName("주문 취소 멱등 성공: 이미 취소된 주문은 재고와 캐시를 다시 변경하지 않는다")
+    void cancelOrder_alreadyCancelled() {
+        // Given
+        Product product = new Product("item", 10000, 5);
+        User user = new User("test", "pw", "user", UserRoleEnum.USER);
+        ReflectionTestUtils.setField(user, "id", 1L);
+        product.removeStock(2);
+
+        Order order = Order.createOrder(user, List.of(OrderItem.createOrderItem(product, 2)));
+        given(orderRepository.findByIdForUpdate(10L)).willReturn(Optional.of(order));
+
+        orderService.cancelOrder(10L, 1L);
+        orderService.cancelOrder(10L, 1L);
+
+        // Then
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
+        assertThat(product.getStockQuantity()).isEqualTo(5);
+        verify(eventPublisher, times(1)).publishEvent(any(ProductCacheEvictEvent.class));
     }
 
     @Test
@@ -167,7 +192,7 @@ public class OrderServiceTest {
         // Given
         Long orderId = 999L;
         Long userId = 1L;
-        given(orderRepository.findById(orderId)).willReturn(Optional.empty());
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> orderService.cancelOrder(orderId,userId))
@@ -189,11 +214,12 @@ public class OrderServiceTest {
         Order order = new Order();
         ReflectionTestUtils.setField(order, "user", owner);
 
-        given(orderRepository.findById(orderId)).willReturn(Optional.of(order));
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // When & Then: 타인(2L)이 취소 요청 시 예외 발생 확인
         assertThatThrownBy(() -> orderService.cancelOrder(orderId, requesterId))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN_ACCESS);
+        verify(eventPublisher, never()).publishEvent(any());
     }
 }

@@ -72,12 +72,17 @@ public class OrderService {
 
     @Transactional
     public void cancelOrder(Long orderId, Long userId) {
-        Order order = orderRepository.findById(orderId)
+        Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
         if(!order.getUser().getId().equals(userId)){
             throw new BusinessException(ErrorCode.FORBIDDEN_ACCESS);
         }
+
+        if (order.isCancelled()) {
+            return;
+        }
+
         order.cancel();
 
         // 재고 복구 후, 변경된 상품의 캐시를 무효화하기 위해 이벤트를 발행합니다.

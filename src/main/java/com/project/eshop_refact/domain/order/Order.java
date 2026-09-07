@@ -69,7 +69,7 @@ public class Order {
      * 주문 상태를 검증한 후 취소 처리 및 하위 주문 상품의 재고를 복구합니다.
      */
     public void cancel(){
-        if(this.status == OrderStatus.COMPLETED){
+        if(this.status != OrderStatus.ORDER){
             throw new BusinessException(ErrorCode.CANNOT_CANCEL_ORDER);
         }
 
@@ -78,5 +78,9 @@ public class Order {
         for(OrderItem orderItem : orderItems){
             orderItem.getProduct().addStock(orderItem.getCount());
         }
+    }
+
+    public boolean isCancelled() {
+        return this.status == OrderStatus.CANCEL;
     }
 }
