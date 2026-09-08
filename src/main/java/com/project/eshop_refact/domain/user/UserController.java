@@ -2,6 +2,8 @@ package com.project.eshop_refact.domain.user;
 
 import com.project.eshop_refact.global.common.ApiResponse;
 import com.project.eshop_refact.global.common.ErrorResponse;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
 import com.project.eshop_refact.global.security.UserDetailsImpl;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -10,8 +12,10 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -20,6 +24,8 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/users")
 @Tag(name = "사용자", description = "회원가입, 로그인 및 토큰 관리 API")
 public class UserController {
+
+    private static final String BEARER_PREFIX = "Bearer ";
 
     private final UserService userService;
 
@@ -77,10 +83,23 @@ public class UserController {
      */
     @Operation(summary = "로그아웃", description = "Refresh Token을 제거하고 현재 Access Token을 블랙리스트에 등록합니다.")
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader String authorizationHeader, @AuthenticationPrincipal UserDetailsImpl userDetails) {
-        String accessToken = authorizationHeader.substring(7);
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader,
+                                                    @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        String accessToken = extractAccessToken(authorizationHeader);
 
         userService.logout(accessToken, userDetails.getUser().getEmail());
         return ResponseEntity.ok(ApiResponse.success("로그아웃 성공"));
+    }
+
+    private String extractAccessToken(String authorizationHeader) {
+        if (!StringUtils.hasText(authorizationHeader) || !authorizationHeader.startsWith(BEARER_PREFIX)) {
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
+        }
+
+        String accessToken = authorizationHeader.substring(BEARER_PREFIX.length());
+        if (!StringUtils.hasText(accessToken)) {
+            throw new BusinessException(ErrorCode.INVALID_TOKEN);
+        }
+        return accessToken;
     }
 }

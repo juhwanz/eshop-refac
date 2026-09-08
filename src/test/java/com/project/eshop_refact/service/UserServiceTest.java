@@ -18,6 +18,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -109,5 +110,25 @@ class UserServiceTest {
         // 반환된 응답 DTO에 토큰 정보가 올바르게 매핑되었는지 검증합니다.
         assertThat(response.getAccessToken()).isEqualTo("access");
         assertThat(response.getRefreshToken()).isEqualTo("refresh");
+    }
+
+    @Test
+    @DisplayName("로그아웃 성공 시 Refresh Token을 삭제하고 Access Token을 남은 만료 시간 동안 차단한다")
+    void logout_success() {
+        String accessToken = "access-token";
+        String email = "test@test.com";
+        long expiration = System.currentTimeMillis() + 60_000;
+        when(jwtUtil.getExpiration(accessToken)).thenReturn(expiration);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+        userService.logout(accessToken, email);
+
+        verify(redisTemplate).delete("RT:" + email);
+        verify(valueOperations).set(
+                eq("BLACKLIST:" + accessToken),
+                eq("logout"),
+                longThat(ttl -> ttl > 0 && ttl <= 60_000),
+                eq(TimeUnit.MILLISECONDS)
+        );
     }
 }

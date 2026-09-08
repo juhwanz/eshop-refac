@@ -3,9 +3,12 @@ package com.project.eshop_refact.controller;
 import com.project.eshop_refact.domain.user.UserController;
 import com.project.eshop_refact.global.security.JwtUtil;
 import com.project.eshop_refact.global.security.SecurityConfig;
+import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.domain.user.UserDto;
+import com.project.eshop_refact.domain.user.UserRoleEnum;
 import com.project.eshop_refact.global.exception.BusinessException;
 import com.project.eshop_refact.global.exception.ErrorCode;
+import com.project.eshop_refact.global.security.UserDetailsImpl;
 import com.project.eshop_refact.global.security.UserDetailsServiceImpl;
 import com.project.eshop_refact.domain.user.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -26,7 +29,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -200,5 +206,50 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest()) // 또는 401(Unauthorized)
                 .andDo(print());
+    }
+
+    @Test
+    @DisplayName("로그아웃 성공: Bearer 접두사를 제외한 Access Token을 전달한다")
+    void logout_success() throws Exception {
+        UserDetailsImpl userDetails = testUserDetails();
+
+        mockMvc.perform(post("/api/users/logout")
+                        .with(csrf())
+                        .with(user(userDetails))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer access-token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("로그아웃 성공"));
+
+        verify(userService).logout("access-token", "test@email.com");
+    }
+
+    @Test
+    @DisplayName("로그아웃 실패: 잘못된 인증 scheme은 401을 반환한다")
+    void logout_rejects_invalid_scheme() throws Exception {
+        mockMvc.perform(post("/api/users/logout")
+                        .with(csrf())
+                        .with(user(testUserDetails()))
+                        .header(HttpHeaders.AUTHORIZATION, "Token access-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("로그아웃 실패: 빈 Bearer Token은 401을 반환한다")
+    void logout_rejects_empty_bearer_token() throws Exception {
+        mockMvc.perform(post("/api/users/logout")
+                        .with(csrf())
+                        .with(user(testUserDetails()))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer "))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+
+        verifyNoInteractions(userService);
+    }
+
+    private UserDetailsImpl testUserDetails() {
+        return new UserDetailsImpl(new User("test@email.com", "password", "tester", UserRoleEnum.USER));
     }
 }
