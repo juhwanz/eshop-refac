@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional(readOnly = true)
@@ -33,6 +34,25 @@ public class OrderService {
      */
     @Transactional
     public Long order(Long userId, Long productId, int count){
+        return order(userId, productId, count, null);
+    }
+
+    public Optional<Long> findCompletedOrder(Long userId, OrderRequestIdentity identity) {
+        return orderRepository.findByUserIdAndIdempotencyKey(userId, identity.keyBytes())
+                .map(order -> {
+                    identity.verifyFingerprint(order.getRequestFingerprint());
+                    return order.getId();
+                });
+    }
+
+    @Transactional
+    public Long order(Long userId, Long productId, int count, OrderRequestIdentity identity) {
+        if (identity != null) {
+            Optional<Long> completed = findCompletedOrder(userId, identity);
+            if (completed.isPresent()) {
+                return completed.get();
+            }
+        }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -42,7 +62,13 @@ public class OrderService {
         OrderItem orderItem = OrderItem.createOrderItem(product, count);
         Order order = Order.createOrder(user, List.of(orderItem));
 
+        if (identity != null) {
+            order.identifyRequest(identity);
+        }
         orderRepository.save(order);
+        if (identity != null) {
+            orderRepository.flush();
+        }
         return order.getId();
     }
 

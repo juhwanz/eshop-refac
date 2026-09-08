@@ -86,6 +86,17 @@ class RedissonLockStockFacadeTest {
     }
 
     @Test
+    void cleanupFailuresDoNotHideCommittedOrder() throws Exception {
+        when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
+        when(orders.order(1L, 2L, 1)).thenReturn(3L);
+        doThrow(new IllegalStateException("Redis unlock failure")).when(lock).unlock();
+        doThrow(new IllegalStateException("Redis queue failure")).when(queue).removeUser(1L);
+        assertThat(facade.order(1L, 2L, 1)).isEqualTo(3L);
+        verify(queue).removeUser(1L);
+    }
+
+    @Test
     void cancellationFailurePreservesPermission() throws Exception {
         when(orders.getProductIdByOrderId(3L)).thenReturn(2L);
         when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(false);

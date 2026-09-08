@@ -96,7 +96,8 @@ class OrderControllerTest {
         request.setProductId(100L);
         request.setCount(1);
 
-        given(waitingQueueService.isAllowed(anyLong())).willReturn(false);
+        given(orderIdempotencyService.processOrderWithIdempotency(anyString(), anyLong(), anyLong(), anyInt()))
+                .willThrow(new BusinessException(ErrorCode.QUEUE_WAITING));
 
         // when & then
         mockMvc.perform(post("/api/orders")

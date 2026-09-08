@@ -1,13 +1,10 @@
 package com.project.eshop_refact.global.interceptor;
 
-import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import com.project.eshop_refact.global.exception.BusinessException;
 import com.project.eshop_refact.global.exception.ErrorCode;
 import com.project.eshop_refact.global.security.UserDetailsImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,16 +12,11 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * 주문 도메인 진입 대기열(Queue) 검증 인터셉터
- * 대규모 트래픽 발생 시, 활성 대기열(Active Queue)에 정상적으로 진입한 사용자만 주문 로직을 수행할 수 있도록 제어합니다.
+ * 주문 진입 시 인증 정보를 확인합니다.
+ * 대기열 권한은 완료된 요청을 복구한 뒤 주문 파사드에서 검증합니다.
  */
-@Slf4j
 @Component
-@RequiredArgsConstructor
 public class QueueInterceptor implements HandlerInterceptor {
-
-    private final WaitingQueueService waitingQueueService;
-    // 💡 핵심 1: ObjectMapper 의존성이 완전히 제거되었습니다! (가벼워진 빈)
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -48,17 +40,8 @@ public class QueueInterceptor implements HandlerInterceptor {
             throw new BusinessException(ErrorCode.INVALID_TOKEN);
         }
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-        Long userId = userDetails.getUser().getId();
-
-        // 4. 활성 큐(Active Queue) 진입 여부 검증 (통과 시 true)
-        if (waitingQueueService.isAllowed(userId)) {
-            return true;
-        }
-
-        log.warn("[진입 차단] 대기열 미통과 사용자 접근 시도 - userId: {}", userId);
-
-        // 인터셉터에서 던진 예외는 DispatcherServlet을 거쳐 @RestControllerAdvice가 낚아챕니다.
-        throw new BusinessException(ErrorCode.QUEUE_WAITING);
+        // 신규 주문의 대기열 검사는 완료 요청 복구 이후 상품 락 안에서 수행합니다.
+        // 이 위치에서 차단하면 주문 완료로 권한이 제거된 사용자가 결과를 재조회할 수 없습니다.
+        return true;
     }
 }

@@ -2,68 +2,124 @@ package com.project.eshop_refact.domain.order;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.eshop_refact.global.exception.BusinessException;
-import com.project.eshop_refact.global.exception.ErrorCode;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 주문 멱등성 보장 서비스
- * Redis를 활용하여 네트워크 지연이나 클라이언트 재시도로 인한 중복 주문을 방지합니다.
- */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OrderIdempotencyService {
+
+    private static final DefaultRedisScript<Long> RELEASE = new DefaultRedisScript<>(
+            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+            Long.class);
 
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
     private final RedissonLockStockFacade redissonLockStockFacade;
-
     private final MeterRegistry meterRegistry;
     private final OrderService orderService;
 
-    public OrderDto.CreateResponse processOrderWithIdempotency(String idempotencyKey, Long userId, Long productId, int count) throws Exception {
-        String redisKey = "idempotency:order:" + userId + ":" + idempotencyKey;
+    public record CachedOrder(int version, String fingerprint, Long orderId) { }
 
-        // 원자적 연산(setIfAbsent)을 통해 중복 요청의 동시 처리를 방지하고 상태를 점유합니다.
-        Boolean isNewRequest = redisTemplate.opsForValue()
-                .setIfAbsent(redisKey, "PROCESSING", 3, TimeUnit.MINUTES);
-
-        // 이미 처리 중이거나 완료된 요청에 대한 방어 로직
-        if (Boolean.FALSE.equals(isNewRequest)) {
-            String currentState = redisTemplate.opsForValue().get(redisKey);
-            if ("PROCESSING".equals(currentState)) {
-                throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE);
-            }
-            // 처리가 완료된 요청은 기존 응답을 반환하여 멱등성을 유지합니다.
-            return objectMapper.readValue(currentState, OrderDto.CreateResponse.class);
+    // 트랜잭션을 열지 않습니다. 중복 INSERT의 롤백이 끝난 뒤 새 DB 조회로 결과를 복구합니다.
+    public OrderDto.CreateResponse processOrderWithIdempotency(String key, Long userId, Long productId, int count) {
+        OrderRequestIdentity identity = OrderRequestIdentity.of(key, productId, count);
+        String redisKey = "idempotency:order:" + userId + ":" + key;
+        CachedOrder cached = readCache(redisKey);
+        if (cached != null) {
+            identity.verifyFingerprint(cached.fingerprint());
+            return new OrderDto.CreateResponse(cached.orderId());
+        }
+        Optional<Long> completed = orderService.findCompletedOrder(userId, identity);
+        if (completed.isPresent()) {
+            return complete(redisKey, identity, completed.get());
         }
 
+        String token = "PROCESSING:" + UUID.randomUUID();
+        boolean owned = claim(redisKey, token);
         try {
-            Long orderId = redissonLockStockFacade.order(userId, productId, count);
-
-            // 주문 성공 시 처리 결과를 캐싱하고, TTL을 연장하여 일정 기간 멱등성을 보장합니다.
-            OrderDto.CreateResponse response = new OrderDto.CreateResponse(orderId);
-            String responseJson = objectMapper.writeValueAsString(response);
-            redisTemplate.opsForValue().set(redisKey, responseJson, 24, TimeUnit.HOURS);
-
-            meterRegistry.counter("order.success.count").increment();
-
-            return response;
-
-        } catch (Exception e) {
-            // 예외 발생 시 클라이언트가 안전하게 재시도할 수 있도록 멱등성 키를 삭제합니다.
-            redisTemplate.delete(redisKey);
-
-            if (e instanceof BusinessException) {
-                meterRegistry.counter("order.fail.count", "reason", "business_error").increment();
-            } else {
-                meterRegistry.counter("order.fail.count", "reason", "system_error").increment();
+            Long orderId;
+            try {
+                orderId = redissonLockStockFacade.order(userId, productId, count, identity);
+            } catch (DataIntegrityViolationException exception) {
+                if (!isIdempotencyConstraint(exception)) {
+                    throw exception;
+                }
+                orderId = orderService.findCompletedOrder(userId, identity).orElseThrow(() -> exception);
             }
-            throw e;
+            meterRegistry.counter("order.success.count").increment();
+            return complete(redisKey, identity, orderId);
+        } catch (RuntimeException exception) {
+            meterRegistry.counter("order.fail.count", "reason",
+                    exception instanceof BusinessException ? "business_error" : "system_error").increment();
+            throw exception;
+        } finally {
+            if (owned) {
+                release(redisKey, token);
+            }
+        }
+    }
+
+    private boolean isIdempotencyConstraint(Throwable exception) {
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException violation) {
+                String name = violation.getConstraintName();
+                return name != null && name.replace("`", "").replace("'", "")
+                        .endsWith("uk_orders_user_idempotency");
+            }
+        }
+        return false;
+    }
+
+    private CachedOrder readCache(String key) {
+        try {
+            String value = redisTemplate.opsForValue().get(key);
+            if (value == null || value.startsWith("PROCESSING")) {
+                return null;
+            }
+            CachedOrder cached = objectMapper.readValue(value, CachedOrder.class);
+            return cached.version() == 1 && cached.fingerprint() != null && cached.orderId() != null ? cached : null;
+        } catch (Exception exception) {
+            log.warn("주문 멱등성 캐시 읽기 실패; DB에서 확인합니다.");
+            return null;
+        }
+    }
+
+    private boolean claim(String key, String token) {
+        try {
+            return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, token, 3, TimeUnit.MINUTES));
+        } catch (RuntimeException exception) {
+            log.warn("주문 멱등성 캐시 선점 실패; DB 유일 제약으로 보호합니다.");
+            return false;
+        }
+    }
+
+    private OrderDto.CreateResponse complete(String key, OrderRequestIdentity identity, Long orderId) {
+        try {
+            String value = objectMapper.writeValueAsString(new CachedOrder(1, identity.fingerprint(), orderId));
+            redisTemplate.opsForValue().set(key, value, 24, TimeUnit.HOURS);
+        } catch (Exception exception) {
+            log.warn("주문 완료 캐시 저장 실패 - OrderId: {}", orderId);
+        }
+        return new OrderDto.CreateResponse(orderId);
+    }
+
+    private void release(String key, String token) {
+        try {
+            redisTemplate.execute(RELEASE, List.of(key), token);
+        } catch (RuntimeException exception) {
+            log.warn("주문 처리 표시 정리 실패; TTL로 만료됩니다.");
         }
     }
 }
