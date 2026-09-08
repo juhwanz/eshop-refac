@@ -20,7 +20,8 @@ import java.util.List;
 @Getter
 @NoArgsConstructor
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "orders")
+@Table(name = "orders", uniqueConstraints = @UniqueConstraint(
+        name = "uk_orders_user_idempotency", columnNames = {"user_id", "idempotency_key"}))
 public class Order {
 
     @Id
@@ -41,6 +42,20 @@ public class Order {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private OrderStatus status;
+
+    @Column(name = "idempotency_key", length = 128, updatable = false)
+    private byte[] idempotencyKey;
+
+    @Column(name = "request_fingerprint", length = 64, updatable = false)
+    private String requestFingerprint;
+
+    public void identifyRequest(OrderRequestIdentity identity) {
+        if (idempotencyKey != null) {
+            throw new IllegalStateException("요청 식별자는 변경할 수 없습니다.");
+        }
+        idempotencyKey = identity.keyBytes();
+        requestFingerprint = identity.fingerprint();
+    }
 
     // 연관관계 편의 메서드
     public void addOrderItem(OrderItem orderItem){

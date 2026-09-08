@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 
 /**
  * 분산 락(Redisson) 기반 재고 동시성 제어 파사드
@@ -31,6 +32,10 @@ public class RedissonLockStockFacade {
     private long waitTime;
 
     public Long order(Long userId, Long productId, int count) {
+        return order(userId, productId, count, null);
+    }
+
+    public Long order(Long userId, Long productId, int count, OrderRequestIdentity identity) {
         RLock lock = redissonClient.getLock("product:stock:" + productId);
         boolean lockAcquired = false;
 
@@ -44,6 +49,16 @@ public class RedissonLockStockFacade {
                 throw new BusinessException(ErrorCode.LOCK_ACQUISITION_FAILED);
             }
 
+            if (identity != null) {
+                Optional<Long> completed = orderService.findCompletedOrder(userId, identity);
+                if (completed.isPresent()) {
+                    return completed.get();
+                }
+                if (!waitingQueueService.isAllowed(userId)) {
+                    throw new BusinessException(ErrorCode.QUEUE_WAITING);
+                }
+                return orderService.order(userId, productId, count, identity);
+            }
             return orderService.order(userId, productId, count);
 
         } catch (InterruptedException e) {
@@ -54,10 +69,16 @@ public class RedissonLockStockFacade {
                 if(lockAcquired && lock.isHeldByCurrentThread()){
                     lock.unlock();
                 }
-            }finally {
+            } catch (RuntimeException cleanupFailure) {
+                log.warn("주문 락 정리 실패 - ProductId: {}", productId, cleanupFailure);
+            } finally {
                 // 락을 획득했던 사용자(주문 처리 완료 또는 비즈니스 예외 발생)만 대기열에서 제거하여 큐의 무결성을 유지합니다.
                 if (lockAcquired) {
-                    waitingQueueService.removeUser(userId);
+                    try {
+                        waitingQueueService.removeUser(userId);
+                    } catch (RuntimeException cleanupFailure) {
+                        log.warn("주문 대기열 정리 실패 - UserId: {}", userId, cleanupFailure);
+                    }
                 }
             }
         }

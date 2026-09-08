@@ -60,6 +60,7 @@ public class OrderIdempotencyTest extends MariaDbRedisIntegrationTest {
         Long userId = user.getId();
         Long productId = product.getId();
         int count = 1;
+        redisTemplate.opsForValue().set("active_user:" + userId, "true");
 
         // When: 최초 주문 요청 수행
         OrderDto.CreateResponse firstResponse = orderIdempotencyService.processOrderWithIdempotency(idempotencyKey, userId, productId, count);

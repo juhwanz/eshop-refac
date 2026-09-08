@@ -16,6 +16,8 @@ import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
+    Optional<Order> findByUserIdAndIdempotencyKey(Long userId, byte[] idempotencyKey);
+
     /**
      * 사용자별 최신 주문 목록 조회
      */

@@ -34,6 +34,7 @@ public enum ErrorCode {
     OUT_OF_STOCK(HttpStatus.BAD_REQUEST, "재고가 부족합니다."),
 
     // --- Order ---
+    IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "같은 요청 키에 다른 주문 내용이 사용되었습니다."),
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 주문을 찾을 수 없습니다."),
     CANNOT_CANCEL_ORDER(HttpStatus.BAD_REQUEST, "현재 주문 상태에서는 주문을 취소할 수 없습니다."),
 
