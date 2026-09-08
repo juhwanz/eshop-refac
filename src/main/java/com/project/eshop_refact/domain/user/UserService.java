@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
@@ -25,6 +26,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RedisTemplate<String, String> redisTemplate;
+    private final LoginAttemptService loginAttemptService;
 
     @Transactional  // 쓰기 작업
     public void signup(UserDto.SignupRequest requestDto){
@@ -41,23 +43,15 @@ public class UserService {
         userRepository.save(user);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public UserDto.TokenResponse login(UserDto.LoginRequest requestDto){
         User user = userRepository.findByEmail(requestDto.getEmail())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LOGIN_FAILED));
 
-        if(user.getStatus() == UserStatus.LOCKED){
-            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
-        }
-        if(user.getStatus() == UserStatus.DELETED){
-            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED);
-        }
-        if(!passwordEncoder.matches(requestDto.getPassword(), user.getPassword())){
-            user.handleLoginFailure();  // 실패 횟수 증가
+        boolean passwordMatches = passwordEncoder.matches(requestDto.getPassword(), user.getPassword());
+        if (!loginAttemptService.apply(user.getId(), passwordMatches)) {
             throw new BusinessException(ErrorCode.LOGIN_FAILED);
         }
-
-        user.resetLoginFailCount();
 
         String accessToken = jwtUtil.createToken(user.getEmail(), user.getRole());
         String refreshToken = jwtUtil.createRefreshToken(user.getEmail());

@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Duration;
+import java.time.Instant;
+
 /**
  * 사용자(User) 도메인 엔티티
  */
@@ -38,6 +41,9 @@ public class User {
     @Column(nullable = false)
     private int loginFailCount = 0;
 
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
+
     public User(String email, String password, String username, UserRoleEnum role) {
         if(email == null || email.isBlank()){
             throw new IllegalArgumentException("이메일은 필수입니다.");
@@ -57,22 +63,43 @@ public class User {
         this.role = role;
     }
 
-    /**
-     * 로그인 실패 처리
-     * 연속 5회 이상 로그인 실패 시, 사용자 상태를 잠금(LOCKED)으로 전환하여 보안을 유지합니다.
-     */
-    public void handleLoginFailure(){
-        this.loginFailCount++;
-        if(this.loginFailCount >= 5){
-            this.status = UserStatus.LOCKED;
+    public boolean applyLoginAttempt(boolean passwordMatches, Instant now,
+                                     int maxFailures, Duration lockDuration) {
+        if (now == null || lockDuration == null || maxFailures <= 0 || lockDuration.isNegative()
+                || lockDuration.isZero()) {
+            throw new IllegalArgumentException("로그인 잠금 정책이 올바르지 않습니다.");
         }
+        if (status != UserStatus.ACTIVE) {
+            return false;
+        }
+        if (isTemporarilyLocked(now)) {
+            return false;
+        }
+
+        if (lockedUntil != null) {
+            resetLoginFailureState();
+        }
+
+        if (!passwordMatches) {
+            loginFailCount++;
+            if (loginFailCount >= maxFailures) {
+                loginFailCount = maxFailures;
+                lockedUntil = now.plus(lockDuration);
+            }
+            return false;
+        }
+
+        resetLoginFailureState();
+        return true;
     }
 
-    /**
-     * 로그인 성공 시 누적된 실패 횟수를 초기화합니다.
-     */
-    public void resetLoginFailCount(){
-        this.loginFailCount = 0;
+    public boolean isTemporarilyLocked(Instant now) {
+        return lockedUntil != null && lockedUntil.isAfter(now);
+    }
+
+    private void resetLoginFailureState() {
+        loginFailCount = 0;
+        lockedUntil = null;
     }
 
 }
