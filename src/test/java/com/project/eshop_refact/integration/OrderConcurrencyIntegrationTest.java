@@ -8,7 +8,6 @@ import com.project.eshop_refact.domain.order.OrderRepository;
 import com.project.eshop_refact.domain.product.ProductRepository;
 import com.project.eshop_refact.domain.user.UserRepository;
 import com.project.eshop_refact.domain.order.OrderService;
-import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import com.project.eshop_refact.domain.order.strategy.PessimisticLockStrategy;
 import com.project.eshop_refact.integration.support.MariaDbRedisIntegrationTest;
 import org.junit.jupiter.api.AfterEach;
@@ -18,7 +17,6 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -28,8 +26,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.BDDMockito.given;
 
 /**
  * 대규모 동시성 트래픽 통합 테스트 및 락 메커니즘 성능 분석
@@ -55,9 +51,6 @@ public class OrderConcurrencyIntegrationTest extends MariaDbRedisIntegrationTest
     @Autowired private PessimisticLockStrategy pessimisticLockStrategy;
     @Autowired private RedissonClient redissonClient;
 
-    // 락 성능 검증에 집중하기 위해 대기열 서비스는 통과하도록 Mocking
-    @MockBean private WaitingQueueService waitingQueueService;
-
     @AfterEach
     void tearDown() {
         orderRepository.deleteAll();
@@ -71,8 +64,6 @@ public class OrderConcurrencyIntegrationTest extends MariaDbRedisIntegrationTest
         // Given
         int stockQuantity = 40;
         int threadCount = 45;
-
-        given(waitingQueueService.isAllowed(anyLong())).willReturn(true);
 
         Product product = productRepository.save(new Product("Hot Deal Item", 10000, stockQuantity));
         Long productId = product.getId();
@@ -190,8 +181,6 @@ public class OrderConcurrencyIntegrationTest extends MariaDbRedisIntegrationTest
 
         Product product = productRepository.save(new Product("Test Item", 10000, stockQuantity));
         User user = userRepository.save(new User("tester@test.com", "1234", "tester", UserRoleEnum.USER));
-
-        given(waitingQueueService.isAllowed(anyLong())).willReturn(true);
 
         ExecutorService executorService = Executors.newFixedThreadPool(32);
         CountDownLatch latch = new CountDownLatch(threadCount);

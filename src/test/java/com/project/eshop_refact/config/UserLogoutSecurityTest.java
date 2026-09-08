@@ -1,6 +1,5 @@
 package com.project.eshop_refact.config;
 
-import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import com.project.eshop_refact.domain.user.UserController;
 import com.project.eshop_refact.domain.user.UserService;
 import com.project.eshop_refact.global.security.JwtAuthenticationFilter;
@@ -54,9 +53,6 @@ class UserLogoutSecurityTest {
 
     @MockBean
     RedisTemplate<String, String> redisTemplate;
-
-    @MockBean
-    WaitingQueueService waitingQueueService;
 
     @Test
     @DisplayName("로그아웃 보안 경계: Authorization 헤더 누락을 401로 거절한다")

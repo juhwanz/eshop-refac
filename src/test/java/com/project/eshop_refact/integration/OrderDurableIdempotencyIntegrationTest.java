@@ -80,7 +80,7 @@ class OrderDurableIdempotencyIntegrationTest extends MariaDbRedisIntegrationTest
     void prepare() {
         owner = users.save(new User("durable@test.com", "pw", "owner", UserRoleEnum.USER));
         product = products.save(new Product("durable", 1000, 1));
-        allow(owner.getId());
+        allow(owner.getId(), product.getId());
     }
 
     @AfterEach
@@ -128,6 +128,7 @@ class OrderDurableIdempotencyIntegrationTest extends MariaDbRedisIntegrationTest
     @Test
     void competingInsertsOnDifferentProductsRollbackLoser() throws Exception {
         Product other = products.save(new Product("other", 1000, 1));
+        allow(owner.getId(), other.getId());
         CyclicBarrier inserts = new CyclicBarrier(2);
         // 두 트랜잭션 모두 기존 결과 조회를 끝낸 뒤 INSERT하도록 실제 경합을 보장합니다.
         doAnswer(invocation -> {
@@ -205,6 +206,22 @@ class OrderDurableIdempotencyIntegrationTest extends MariaDbRedisIntegrationTest
     }
 
     @Test
+    void activePermissionForOneProductCannotOrderAnotherProduct() {
+        Product other = products.save(new Product("other", 1000, 1));
+
+        assertThatThrownBy(() -> request("wrong-product", other.getId(), 1))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.QUEUE_WAITING);
+
+        assertThat(repository.count()).isZero();
+        assertThat(stock(other.getId())).isEqualTo(1);
+        assertThat(redis.opsForZSet().score(
+                "queue:{" + product.getId() + "}:active",
+                owner.getId().toString()
+        )).isNotNull();
+    }
+
+    @Test
     void failedOrderReleasesOwnedMarkerAndAllowsRetry() {
         assertThatThrownBy(() -> request("failure", product.getId(), 2))
                 .isInstanceOf(BusinessException.class)
@@ -212,7 +229,7 @@ class OrderDurableIdempotencyIntegrationTest extends MariaDbRedisIntegrationTest
         assertThat(redis.hasKey(cacheKey("failure"))).isFalse();
         assertThat(repository.count()).isZero();
         assertThat(stock(product.getId())).isEqualTo(1);
-        allow(owner.getId());
+        allow(owner.getId(), product.getId());
         request("failure", product.getId(), 1);
         assertThat(repository.count()).isEqualTo(1);
     }
@@ -229,10 +246,10 @@ class OrderDurableIdempotencyIntegrationTest extends MariaDbRedisIntegrationTest
     void generatedSchemaEnforcesExactUserScopedKeys() {
         request("Key", product.getId(), 1);
         Product other = products.save(new Product("other", 1000, 10));
-        allow(owner.getId());
+        allow(owner.getId(), other.getId());
         request("key", other.getId(), 1);
         User second = users.save(new User("second@test.com", "pw", "second", UserRoleEnum.USER));
-        allow(second.getId());
+        allow(second.getId(), other.getId());
         service.processOrderWithIdempotency("Key", second.getId(), other.getId(), 1);
         assertThat(repository.count()).isEqualTo(3);
         assertThat(jdbc.queryForObject("select data_type from information_schema.columns where table_schema=database() and table_name='orders' and column_name='idempotency_key'", String.class)).isEqualTo("varbinary");
@@ -291,8 +308,12 @@ class OrderDurableIdempotencyIntegrationTest extends MariaDbRedisIntegrationTest
         return service.processOrderWithIdempotency(key, owner.getId(), productId, count).getOrderId();
     }
 
-    private void allow(Long userId) {
-        redis.opsForValue().set("active_user:" + userId, "true");
+    private void allow(Long userId, Long productId) {
+        redis.opsForZSet().add(
+                "queue:{" + productId + "}:active",
+                userId.toString(),
+                System.currentTimeMillis() + 600_000
+        );
     }
 
     private String cacheKey(String key) {

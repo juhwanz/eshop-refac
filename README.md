@@ -34,7 +34,7 @@ E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건
 | 재고 동시성 | 상품별 Redisson 분산 락 | 재고가 음수가 되거나 초과 판매되지 않음 |
 | 트랜잭션 경계 | 락 획득 후 `OrderService` 트랜잭션 진입 | 락 대기 중 DB 커넥션을 점유하지 않음 |
 | 주문 멱등성 | Redis `setIfAbsent`, 처리 상태 및 응답 TTL | 완료 요청은 기존 응답 반환, 실패 요청은 재시도 허용 |
-| 유량 제어 | Redis ZSet 대기열과 TTL 활성 토큰 | 허용된 사용자만 주문 생성 경로 진입 |
+| 유량 제어 | 상품별 Redis ZSet admission queue와 TTL 활성 권한 | 다른 상품의 혼잡 격리, 주문 상품과 권한 일치 |
 | 캐시 정합성 | `AFTER_COMMIT` 이벤트 기반 상품 캐시 제거 | DB 롤백 시 캐시를 먼저 제거하지 않음 |
 | 상품 조회 | QueryDSL Offset `Page` + No-Offset `Slice` | 페이지 이동과 커서 조회 요구를 분리 |
 | 주문 조회 | `default_batch_fetch_size=100` | 컬렉션 fetch join 기반 메모리 페이징 회피 |
@@ -43,15 +43,15 @@ E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건
 ```mermaid
 flowchart LR
     Client[Client] --> Security[JWT / Spring Security]
-    Security --> Queue[QueueInterceptor]
-    Queue --> Idempotency[Redis idempotency key]
+    Security --> Idempotency[Redis / DB idempotency]
     Idempotency --> Lock[Redisson product lock]
-    Lock --> Service[Order transaction]
+    Lock --> Queue[Product queue permission]
+    Queue --> Service[Order transaction]
     Service --> MariaDB[(MariaDB)]
     Service --> Event[ProductCacheEvictEvent]
     Event -->|AFTER_COMMIT| Redis[(Redis)]
 
-    Redis -. waiting queue .-> Queue
+    Redis -. product waiting / active .-> Queue
     Redis -. cached response .-> Idempotency
 ```
 
@@ -151,7 +151,8 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 | `GET` | `/api/products/search/no-offset` | 공개 | 내림차순 커서 기반 `Slice` 조회 |
 | `POST` | `/api/products` | `ADMIN` | 상품 등록 |
 | `PATCH` | `/api/products/{productId}/price` | `ADMIN` | 가격 수정 |
-| `POST` | `/api/orders/queue` | 사용자 | 대기열 등록, `dev/test/local` 전용 |
+| `POST` | `/api/products/{productId}/queue` | 사용자 | 상품 대기열 등록 또는 현재 상태 반환 |
+| `GET` | `/api/products/{productId}/queue` | 사용자 | 상품 대기열 상태와 현재 순번 조회 |
 | `POST` | `/api/orders` | 사용자 + 대기열 | `Idempotency-Key` 기반 주문 생성 |
 | `GET` | `/api/orders` | 사용자 | 내 주문 목록 조회 |
 | `PATCH` | `/api/orders/{orderId}/cancel` | 주문 소유자 | 주문 취소와 재고 복구 |
@@ -202,6 +203,10 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 - [ADR-0001: 운영 자격 증명 관리](docs/adr/0001-production-credential-management.md)
 - [ADR-0002: MariaDB와 Hibernate 자동 schema 관리](docs/adr/0002-use-mariadb-and-hibernate-schema-update.md)
 - [ADR-0003: CI 검증 성공 후 commit SHA 이미지 게시](docs/adr/0003-gate-image-publishing-on-ci-verification.md)
+- [ADR-0004: Redisson watchdog과 DB 재고 제약](docs/adr/0004-protect-stock-with-watchdog-and-check.md)
+- [ADR-0005: DB 기반 주문 멱등성](docs/adr/0005-persist-order-idempotency-in-database.md)
+- [ADR-0006: 자동 해제되는 임시 로그인 잠금](docs/adr/0006-use-temporary-login-lockout.md)
+- [ADR-0007: 상품 단위 Redis admission queue](docs/adr/0007-use-product-scoped-redis-admission-queue.md)
 - [개선 로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)
 
 ## 프로젝트 구조
@@ -217,6 +222,5 @@ src/main/java/com/project/eshop_refact
     ├── common      # 공통 응답
     ├── config      # JPA, Redis, QueryDSL, ShedLock
     ├── exception   # 비즈니스 오류 규격
-    ├── interceptor # 주문 대기열 검사
     └── security    # JWT와 Spring Security
 ```

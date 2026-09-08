@@ -1,18 +1,14 @@
 package com.project.eshop_refact.controller;
 
 import com.project.eshop_refact.domain.order.*;
-import com.project.eshop_refact.domain.queue.TestSupportController;
-import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import com.project.eshop_refact.global.security.JwtUtil;
 import com.project.eshop_refact.global.security.SecurityConfig;
 import com.project.eshop_refact.global.security.UserDetailsImpl;
-import com.project.eshop_refact.global.config.WebConfig;
 import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.domain.user.UserRoleEnum;
 import com.project.eshop_refact.global.exception.BusinessException;
 import com.project.eshop_refact.global.exception.ErrorCode;
 import com.project.eshop_refact.domain.order.RedissonLockStockFacade;
-import com.project.eshop_refact.global.interceptor.QueueInterceptor;
 import com.project.eshop_refact.global.security.UserDetailsServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,7 +19,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -48,12 +43,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * OrderController 웹 계층 슬라이스 테스트
- * Spring Security, 대기열 인터셉터(QueueInterceptor), 멱등성 검증 등 컨트롤러 진입 전후의 인프라적 제어를 포함하여 테스트합니다.
+ * Spring Security와 멱등성 검증 등 컨트롤러 진입 전후의 인프라적 제어를 포함하여 테스트합니다.
  */
 @ActiveProfiles("test")
-@WebMvcTest(controllers ={ OrderController.class, TestSupportController.class},
+@WebMvcTest(controllers = OrderController.class,
         excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = SecurityConfig.class))
-@Import({WebConfig.class, QueueInterceptor.class})
 class OrderControllerTest {
 
     @Autowired MockMvc mockMvc;
@@ -61,9 +55,6 @@ class OrderControllerTest {
 
     @MockBean OrderService orderService;
     @MockBean RedissonLockStockFacade redissonLockStockFacade;
-    @MockBean
-    WaitingQueueService waitingQueueService;
-
     @MockBean
     OrderIdempotencyService orderIdempotencyService;
 
@@ -84,8 +75,6 @@ class OrderControllerTest {
         ReflectionTestUtils.setField(user, "id", 1L);
         testUserDetails = new UserDetailsImpl(user);
 
-        // 기본적으로 대기열 검증을 통과하도록 설정
-        given(waitingQueueService.isAllowed(any())).willReturn(true);
     }
 
     @Test
@@ -200,19 +189,4 @@ class OrderControllerTest {
                 .andDo(print());
     }
 
-    @Test
-    @DisplayName("대기열 토큰 발급 API 성공 테스트")
-    void registerQueue() throws Exception {
-        // given
-        Long expectedRank = 15L;
-        given(waitingQueueService.registerQueue(anyLong())).willReturn(expectedRank);
-
-        // when & then
-        mockMvc.perform(post("/api/orders/queue")
-                        .with(csrf())
-                        .with(user(testUserDetails)))
-                .andExpect(status().isCreated()) // 201 Created 검증
-                .andExpect(jsonPath("$.data").value(expectedRank.intValue()))
-                .andDo(print());
-    }
 }

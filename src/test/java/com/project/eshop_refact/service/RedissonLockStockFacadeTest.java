@@ -1,6 +1,7 @@
 package com.project.eshop_refact.service;
 
 import com.project.eshop_refact.domain.order.OrderService;
+import com.project.eshop_refact.domain.order.OrderRequestIdentity;
 import com.project.eshop_refact.domain.order.RedissonLockStockFacade;
 import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import com.project.eshop_refact.global.exception.BusinessException;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.concurrent.TimeUnit;
+import java.util.Optional;
 
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -32,10 +34,12 @@ class RedissonLockStockFacadeTest {
     @Mock OrderService orders;
     @Mock WaitingQueueService queue;
     RedissonLockStockFacade facade;
+    OrderRequestIdentity identity;
 
     @BeforeEach
     void setUp() {
         facade = new RedissonLockStockFacade(client, orders, queue);
+        identity = OrderRequestIdentity.of("request-key", 2L, 1);
         ReflectionTestUtils.setField(facade, "waitTime", 10L);
         when(client.getLock("product:stock:2")).thenReturn(lock);
     }
@@ -44,20 +48,23 @@ class RedissonLockStockFacadeTest {
     void successUnlocksAfterServiceAndConsumesPermission() throws Exception {
         when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(true);
         when(lock.isHeldByCurrentThread()).thenReturn(true);
-        when(orders.order(1L, 2L, 1)).thenReturn(3L);
-        assertThat(facade.order(1L, 2L, 1)).isEqualTo(3L);
+        when(queue.isAllowed(1L, 2L)).thenReturn(true);
+        when(orders.order(1L, 2L, 1, identity)).thenReturn(3L);
+        assertThat(facade.order(1L, 2L, 1, identity)).isEqualTo(3L);
         var sequence = inOrder(lock, orders, queue);
         sequence.verify(lock).tryLock(10, TimeUnit.SECONDS);
-        sequence.verify(orders).order(1L, 2L, 1);
+        sequence.verify(orders).findCompletedOrder(1L, identity);
+        sequence.verify(queue).isAllowed(1L, 2L);
+        sequence.verify(orders).order(1L, 2L, 1, identity);
         sequence.verify(lock).isHeldByCurrentThread();
         sequence.verify(lock).unlock();
-        sequence.verify(queue).removeUser(1L);
+        sequence.verify(queue).removeUser(1L, 2L);
     }
 
     @Test
     void failurePreservesPermission() throws Exception {
         when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(false);
-        assertThatThrownBy(() -> facade.order(1L, 2L, 1)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> facade.order(1L, 2L, 1, identity)).isInstanceOf(BusinessException.class);
         verifyNoInteractions(orders, queue);
         verify(lock, never()).unlock();
     }
@@ -66,7 +73,7 @@ class RedissonLockStockFacadeTest {
     void interruptionRestoresFlagAndPreservesPermission() throws Exception {
         when(lock.tryLock(10, TimeUnit.SECONDS)).thenThrow(new InterruptedException());
         try {
-            assertThatThrownBy(() -> facade.order(1L, 2L, 1)).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> facade.order(1L, 2L, 1, identity)).isInstanceOf(IllegalStateException.class);
             assertThat(Thread.currentThread().isInterrupted()).isTrue();
             verifyNoInteractions(orders, queue);
             verify(lock, never()).unlock();
@@ -78,22 +85,49 @@ class RedissonLockStockFacadeTest {
     @Test
     void serviceFailureStillCleansUpWithoutUnlockingAnotherOwner() throws Exception {
         when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(true);
+        when(queue.isAllowed(1L, 2L)).thenReturn(true);
         var failure = new IllegalStateException("rollback");
-        when(orders.order(1L, 2L, 1)).thenThrow(failure);
-        assertThatThrownBy(() -> facade.order(1L, 2L, 1)).isSameAs(failure);
+        when(orders.order(1L, 2L, 1, identity)).thenThrow(failure);
+        assertThatThrownBy(() -> facade.order(1L, 2L, 1, identity)).isSameAs(failure);
         verify(lock, never()).unlock();
-        verify(queue).removeUser(1L);
+        verify(queue).removeUser(1L, 2L);
     }
 
     @Test
     void cleanupFailuresDoNotHideCommittedOrder() throws Exception {
         when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(true);
         when(lock.isHeldByCurrentThread()).thenReturn(true);
-        when(orders.order(1L, 2L, 1)).thenReturn(3L);
+        when(queue.isAllowed(1L, 2L)).thenReturn(true);
+        when(orders.order(1L, 2L, 1, identity)).thenReturn(3L);
         doThrow(new IllegalStateException("Redis unlock failure")).when(lock).unlock();
-        doThrow(new IllegalStateException("Redis queue failure")).when(queue).removeUser(1L);
-        assertThat(facade.order(1L, 2L, 1)).isEqualTo(3L);
-        verify(queue).removeUser(1L);
+        doThrow(new IllegalStateException("Redis queue failure")).when(queue).removeUser(1L, 2L);
+        assertThat(facade.order(1L, 2L, 1, identity)).isEqualTo(3L);
+        verify(queue).removeUser(1L, 2L);
+    }
+
+    @Test
+    void completedRetryDoesNotConsumeAQueuePermission() throws Exception {
+        when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
+        when(orders.findCompletedOrder(1L, identity)).thenReturn(Optional.of(3L));
+
+        assertThat(facade.order(1L, 2L, 1, identity)).isEqualTo(3L);
+
+        verifyNoInteractions(queue);
+        verify(lock).unlock();
+    }
+
+    @Test
+    void missingProductPermissionDoesNotConsumeAnotherPermission() throws Exception {
+        when(lock.tryLock(10, TimeUnit.SECONDS)).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
+        when(queue.isAllowed(1L, 2L)).thenReturn(false);
+
+        assertThatThrownBy(() -> facade.order(1L, 2L, 1, identity))
+                .isInstanceOf(BusinessException.class);
+
+        verify(queue, never()).removeUser(1L, 2L);
+        verify(lock).unlock();
     }
 
     @Test

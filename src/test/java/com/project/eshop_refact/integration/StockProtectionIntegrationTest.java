@@ -24,7 +24,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -49,7 +48,6 @@ class StockProtectionIntegrationTest extends MariaDbRedisIntegrationTest {
     @Autowired UserRepository users;
     @Autowired WaitingQueueService queue;
     @Autowired JdbcTemplate jdbc;
-    @Autowired StringRedisTemplate redis;
     @Autowired HikariDataSource dataSource;
     @SpyBean ProductService productService;
 
@@ -64,7 +62,6 @@ class StockProtectionIntegrationTest extends MariaDbRedisIntegrationTest {
     void watchdogProtectsLongTransactionWithoutConnectionsForWaiters() throws Exception {
         Long productId = products.save(new Product("watchdog", 100, 2)).getId();
         Long userId = users.save(new User("watchdog@test.com", "password", "watchdog", UserRoleEnum.USER)).getId();
-        redis.opsForValue().set("active_user:" + userId, "true");
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AtomicInteger entries = new AtomicInteger();
@@ -102,7 +99,6 @@ class StockProtectionIntegrationTest extends MariaDbRedisIntegrationTest {
             assertThat(entries.get()).isEqualTo(2);
             assertThat(orderRepository.count()).isEqualTo(2);
             assertThat(products.findById(productId).orElseThrow().getStockQuantity()).isZero();
-            assertThat(queue.isAllowed(userId)).isFalse();
         } finally {
             release.countDown();
             executor.shutdownNow();

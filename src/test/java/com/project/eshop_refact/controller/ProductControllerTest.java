@@ -8,7 +8,6 @@ import com.project.eshop_refact.domain.product.ProductDto;
 import com.project.eshop_refact.domain.product.ProductService;
 import com.project.eshop_refact.global.security.UserDetailsServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,8 +54,6 @@ class ProductControllerTest {
     JwtUtil jwtUtil;
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
-    @MockBean
-    WaitingQueueService waitingQueueService;
     @MockBean
     RedisTemplate<String, String> redisTemplate;
 

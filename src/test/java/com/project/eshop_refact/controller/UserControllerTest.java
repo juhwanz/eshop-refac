@@ -12,7 +12,6 @@ import com.project.eshop_refact.global.security.UserDetailsImpl;
 import com.project.eshop_refact.global.security.UserDetailsServiceImpl;
 import com.project.eshop_refact.domain.user.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,8 +64,6 @@ class UserControllerTest {
     @MockBean
     UserDetailsServiceImpl userDetailsServiceImpl;
 
-    @MockBean
-    WaitingQueueService waitingQueueService;
     @MockBean
     RedisTemplate<String, String> redisTemplate;
 

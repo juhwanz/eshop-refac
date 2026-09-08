@@ -20,3 +20,6 @@ jwt:
   # 임의의 값 (Base64 인코딩된 긴 문자열)
   secret: V2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlouV2hhdGlzVGhlTWF0dGVyV2l0aFlou=
   expiration-time: 3600000
+app:
+  queue:
+    scheduler-enabled: false

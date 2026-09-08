@@ -1,89 +1,137 @@
 package com.project.eshop_refact.domain.queue;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisCallback;
+import com.project.eshop_refact.domain.product.ProductRepository;
+import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.serializer.RedisSerializer;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Set;
 
-
-/**
- * 대기열 트래픽 제어 서비스
- * Redis를 활용하여 트래픽 병목을 제어하고 사용자 진입 순서를 관리합니다.
- */
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class WaitingQueueService {
 
+    private static final String WAITING_PRODUCTS_KEY = "queue:waiting-products";
+    private static final DefaultRedisScript<List> REGISTER_SCRIPT = script("redis/queue-register.lua");
+    private static final DefaultRedisScript<List> STATUS_SCRIPT = script("redis/queue-status.lua");
+    private static final DefaultRedisScript<List> PROMOTE_SCRIPT = script("redis/queue-promote.lua");
+
     private final StringRedisTemplate redisTemplate;
+    private final ProductRepository productRepository;
+    private final QueueProperties properties;
 
-    private static final String WAITING_KEY = "waiting_queue";
-    private static final String ACTIVE_KEY_PREFIX = "active_user:";
-
-    private static final long CHUNK_SIZE = 1000L;
-    private static final long ACTIVE_TTL_SECONDS = 600L;
-
-    public Long registerQueue(Long userId){
-        long unixTimestamp = System.currentTimeMillis();
-        // Unix Timestamp를 Score로 사용하여 대기열의 FIFO(First-In-First-Out) 정렬을 보장합니다.
-        redisTemplate.opsForZSet().add(WAITING_KEY, userId.toString(), unixTimestamp);
-
-        return getRank(userId);
+    public WaitingQueueService(
+            StringRedisTemplate redisTemplate,
+            ProductRepository productRepository,
+            QueueProperties properties
+    ) {
+        this.redisTemplate = redisTemplate;
+        this.productRepository = productRepository;
+        this.properties = properties;
     }
 
-    public Long getRank(Long userId){
-        Long rank = redisTemplate.opsForZSet().rank(WAITING_KEY, userId.toString());
-        if(rank == null){
-            return -1L;
+    public Registration register(Long productId, Long userId) {
+        validateProduct(productId);
+        List<Long> result = execute(
+                REGISTER_SCRIPT,
+                List.of(waitingKey(productId), sequenceKey(productId), activeKey(productId), WAITING_PRODUCTS_KEY),
+                userId.toString(),
+                productId.toString()
+        );
+        return new Registration(toResponse(result), result.get(2) == 1L);
+    }
+
+    public QueueDto.Response getStatus(Long productId, Long userId) {
+        validateProduct(productId);
+        return getStatusWithoutProductLookup(productId, userId);
+    }
+
+    public boolean isAllowed(Long userId, Long productId) {
+        return getStatusWithoutProductLookup(productId, userId).getStatus() == QueueStatus.ACTIVE;
+    }
+
+    public void removeUser(Long userId, Long productId) {
+        redisTemplate.opsForZSet().remove(activeKey(productId), userId.toString());
+    }
+
+    public long allowWaitingProducts() {
+        Set<String> productIds = redisTemplate.opsForZSet()
+                .range(WAITING_PRODUCTS_KEY, 0, properties.getProductScanLimit() - 1);
+        if (productIds == null || productIds.isEmpty()) {
+            return 0;
         }
-        return rank + 1;
+
+        long promoted = 0;
+        for (String productIdValue : productIds) {
+            Long productId = Long.valueOf(productIdValue);
+            List<Long> result = execute(
+                    PROMOTE_SCRIPT,
+                    List.of(waitingKey(productId), activeKey(productId), WAITING_PRODUCTS_KEY),
+                    productIdValue,
+                    Long.toString(properties.getPromotionSizePerProduct()),
+                    Long.toString(properties.getActiveTtl().toMillis())
+            );
+            promoted += result.getFirst();
+        }
+        return promoted;
     }
 
-    /**
-     * 대기열 사용자 진입 허용 처리
-     * 대규모 트래픽 환경에서 애플리케이션 메모리 부하(OOM)를 방지하기 위해 Chunk 단위로 분할 처리하며,
-     * Redis 파이프라인(Pipelining)을 적용하여 다중 명령어로 인한 네트워크 RTT를 최소화합니다.
-     */
-    public void allowUsers(long count) {
-        long processed = 0;
+    private QueueDto.Response getStatusWithoutProductLookup(Long productId, Long userId) {
+        List<Long> result = execute(
+                STATUS_SCRIPT,
+                List.of(waitingKey(productId), activeKey(productId)),
+                userId.toString()
+        );
+        return toResponse(result);
+    }
 
-        while(processed < count){
-            long fetchCount = Math.min(CHUNK_SIZE, count - processed);
-            Set<String> users = redisTemplate.opsForZSet().range(WAITING_KEY, 0 , fetchCount - 1);
+    private QueueDto.Response toResponse(List<Long> result) {
+        QueueStatus status = switch (result.getFirst().intValue()) {
+            case 1 -> QueueStatus.WAITING;
+            case 2 -> QueueStatus.ACTIVE;
+            default -> QueueStatus.NOT_REGISTERED;
+        };
+        Long rank = status == QueueStatus.WAITING ? result.get(1) : null;
+        return new QueueDto.Response(status, rank);
+    }
 
-            if(users == null || users.isEmpty()){
-                break;
-            }
+    @SuppressWarnings("unchecked")
+    private List<Long> execute(DefaultRedisScript<List> script, List<String> keys, String... arguments) {
+        List<Long> result = redisTemplate.execute(script, keys, (Object[]) arguments);
+        if (result == null) {
+            throw new IllegalStateException("Redis 대기열 스크립트 결과가 없습니다.");
+        }
+        return result;
+    }
 
-            redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-                RedisSerializer<String> stringSerializer = redisTemplate.getStringSerializer();
-                byte[] keyWaiting = stringSerializer.serialize(WAITING_KEY);
-                byte[] valueTrue = stringSerializer.serialize("true");
-
-                for(String userId : users){
-                    byte[] keyActive = stringSerializer.serialize(ACTIVE_KEY_PREFIX + userId);
-                    byte[] valueId = stringSerializer.serialize(userId);
-                    connection.setEx(keyActive, ACTIVE_TTL_SECONDS, valueTrue);
-                    connection.zRem(keyWaiting, valueId);
-                }
-                return null;
-            });
-
-            processed += users.size();
-            log.info("Processed chunk: {} users allowed. (Total processed: {}/{})", users.size(), processed, count);
+    private void validateProduct(Long productId) {
+        if (!productRepository.existsById(productId)) {
+            throw new BusinessException(ErrorCode.PRODUCT_NOT_FOUND);
         }
     }
 
-    // Interceptor에서 매 API 요청마다 호출되므로, 시스템 부하를 막기 위해 O(1) 시간 복잡도의 단일 키 조회 방식을 사용합니다.
-    public boolean isAllowed(Long userId) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(ACTIVE_KEY_PREFIX + userId));
+    private static String waitingKey(Long productId) {
+        return "queue:{" + productId + "}:waiting";
     }
 
-    public void removeUser(Long userId) {
-        redisTemplate.delete(ACTIVE_KEY_PREFIX + userId);
+    private static String sequenceKey(Long productId) {
+        return "queue:{" + productId + "}:sequence";
+    }
+
+    private static String activeKey(Long productId) {
+        return "queue:{" + productId + "}:active";
+    }
+
+    private static DefaultRedisScript<List> script(String path) {
+        DefaultRedisScript<List> script = new DefaultRedisScript<>();
+        script.setLocation(new ClassPathResource(path));
+        script.setResultType(List.class);
+        return script;
+    }
+
+    public record Registration(QueueDto.Response response, boolean created) {
     }
 }
