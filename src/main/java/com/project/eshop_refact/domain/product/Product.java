@@ -2,9 +2,15 @@ package com.project.eshop_refact.domain.product;
 
 import com.project.eshop_refact.global.exception.BusinessException;
 import com.project.eshop_refact.global.exception.ErrorCode;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
 
 /**
  * 상품(Product) 도메인 엔티티
@@ -13,6 +19,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 @Table(name = "products")
+@Check(name = "chk_products_stock_nonnegative", constraints = "stock_quantity >= 0")
 public class Product {
 
     @Id
@@ -63,5 +70,4 @@ public class Product {
         this.price = newPrice;
     }
 }
-
 
