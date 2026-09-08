@@ -22,7 +22,7 @@ public enum ErrorCode {
     EMAIL_DUPLICATION(HttpStatus.BAD_REQUEST, "이미 가입된 이메일입니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
     LOGIN_FAILED(HttpStatus.BAD_REQUEST, "이메일 또는 비밀번호가 일치하지 않습니다."), // 보안상 모호하게 주는 경우도 있음
-    ACCOUNT_LOCKED(HttpStatus.FORBIDDEN, "비밀번호 5회 오류 또는 관리자에 의해 정지된 계정입니다."),
+    ACCOUNT_LOCKED(HttpStatus.FORBIDDEN, "계정이 잠겨 있습니다."),
     ACCOUNT_DISABLED(HttpStatus.FORBIDDEN, "탈퇴된 계정입니다."),
 
     // --- Auth ---

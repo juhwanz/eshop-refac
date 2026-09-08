@@ -49,6 +49,10 @@ management:
       show-details: never
 
 app:
+  security:
+    login-lock:
+      max-failures: 5 # 기존 연속 실패 임계치를 유지합니다.
+      lock-duration: 15m # 영구 잠금 없이 반복 대입을 지연하는 초기 정책입니다.
   order:
     lock:
       wait-time: 10 # 대기열 병목 방지를 위한 분산 락 획득 최대 대기 시간 (Fail-Fast 유도)

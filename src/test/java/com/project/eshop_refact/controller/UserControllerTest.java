@@ -15,9 +15,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -37,6 +40,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * UserController 웹 계층 슬라이스 테스트
@@ -189,9 +195,10 @@ class UserControllerTest {
     }
 
     @Test
+    @ExtendWith(OutputCaptureExtension.class)
     @DisplayName("로그인 실패 : 비밀번호 불일치")
     @WithMockUser
-    void login_fail_password() throws Exception{
+    void login_fail_password(CapturedOutput output) throws Exception{
         //given
         UserDto.LoginRequest request = new UserDto.LoginRequest();
         request.setEmail("test@email.com");
@@ -205,7 +212,14 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest()) // 또는 401(Unauthorized)
-                .andDo(print());
+                .andExpect(jsonPath("$.code").value("LOGIN_FAILED"))
+                .andExpect(content().string(not(containsString(request.getEmail()))))
+                .andExpect(content().string(not(containsString(request.getPassword()))))
+                .andExpect(content().string(not(containsString("잠금"))))
+                .andReturn();
+
+        assertThat(output.getAll())
+                .doesNotContain(request.getEmail(), request.getPassword(), "잠금");
     }
 
     @Test

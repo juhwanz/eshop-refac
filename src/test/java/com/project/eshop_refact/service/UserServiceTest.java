@@ -1,11 +1,13 @@
 package com.project.eshop_refact.service;
 
+import com.project.eshop_refact.domain.user.LoginAttemptService;
 import com.project.eshop_refact.domain.user.UserService;
 import com.project.eshop_refact.global.security.JwtUtil;
 import com.project.eshop_refact.domain.user.User;
 import com.project.eshop_refact.domain.user.UserRoleEnum;
 import com.project.eshop_refact.domain.user.UserDto;
 import com.project.eshop_refact.global.exception.BusinessException;
+import com.project.eshop_refact.global.exception.ErrorCode;
 import com.project.eshop_refact.domain.user.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -42,6 +45,8 @@ class UserServiceTest {
     private PasswordEncoder passwordEncoder;
     @Mock
     private JwtUtil jwtUtil;
+    @Mock
+    private LoginAttemptService loginAttemptService;
     @Mock private RedisTemplate<String, String> redisTemplate;
 
     @Mock private ValueOperations<String, String> valueOperations;
@@ -97,6 +102,7 @@ class UserServiceTest {
         // 정상적인 회원 조회, 비밀번호 일치, 그리고 JWT 토큰 발급 동작을 정의합니다.
         when(userRepository.findByEmail(any())).thenReturn(Optional.of(fakeUser));
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
+        when(loginAttemptService.apply(null, true)).thenReturn(true);
         when(jwtUtil.createToken(any(), any())).thenReturn("access");
         when(jwtUtil.createRefreshToken(any())).thenReturn("refresh");
 
@@ -110,6 +116,37 @@ class UserServiceTest {
         // 반환된 응답 DTO에 토큰 정보가 올바르게 매핑되었는지 검증합니다.
         assertThat(response.getAccessToken()).isEqualTo("access");
         assertThat(response.getRefreshToken()).isEqualTo("refresh");
+    }
+
+    @Test
+    @DisplayName("로그인 실패는 상태와 관계없이 동일한 오류를 반환한다")
+    void login_failure_is_generic() {
+        UserDto.LoginRequest request = new UserDto.LoginRequest();
+        request.setEmail("test@test.com");
+        request.setPassword("wrong-password");
+        User user = new User("test@test.com", "encodedPw", "tester", UserRoleEnum.USER);
+        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(request.getPassword(), user.getPassword())).thenReturn(false);
+        when(loginAttemptService.apply(null, false)).thenReturn(false);
+
+        assertThatThrownBy(() -> userService.login(request))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.LOGIN_FAILED);
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 사용자도 일반 로그인 실패로 응답한다")
+    void login_missing_user_is_generic() {
+        UserDto.LoginRequest request = new UserDto.LoginRequest();
+        request.setEmail("missing@test.com");
+        request.setPassword("password");
+        when(userRepository.findByEmail(request.getEmail())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.login(request))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.LOGIN_FAILED);
+
+        verifyNoInteractions(loginAttemptService);
     }
 
     @Test

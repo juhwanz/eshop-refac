@@ -128,6 +128,8 @@ No-Offset 커서는 마지막으로 받은 상품 ID입니다. 정렬 방향이 
 ## 인증과 토큰 생명주기
 
 - Access Token과 Refresh Token을 분리하고 토큰 type claim을 확인합니다.
+- 로그인 실패는 계정별로 기록하며 연속 5회 실패 시 기본 15분 동안 임시 잠금합니다. 잠금 상태는 별도 트랜잭션과 사용자 행 락으로 갱신하고 만료 후 자동으로 새 시도를 허용합니다. 세부 결정은 [ADR-0006](adr/0006-use-temporary-login-lockout.md)에 기록합니다.
+- 사용자 없음, 비밀번호 불일치, 잠금과 비활성 상태는 로그인 API에서 같은 실패 응답으로 처리합니다.
 - Refresh Token은 `RT:{email}`에 14일 TTL로 저장합니다.
 - 재발급 시 저장된 토큰과 비교한 뒤 새 Refresh Token으로 교체합니다.
 - 로그아웃 시 Refresh Token을 제거하고 남은 Access Token 수명만큼 blacklist를 유지합니다.
