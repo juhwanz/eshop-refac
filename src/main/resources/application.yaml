@@ -49,6 +49,14 @@ management:
       show-details: never
 
 app:
+  queue:
+    active-ttl: 10m
+    promotion-size-per-product: 100
+    product-scan-limit: 100
+    schedule-delay-ms: 1000
+    initial-delay-ms: 1000
+    scheduler-lock-at-least: 900ms
+    scheduler-lock-at-most: 30s
   security:
     login-lock:
       max-failures: 5 # 기존 연속 실패 임계치를 유지합니다.

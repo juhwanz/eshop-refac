@@ -19,7 +19,7 @@ E-Shop의 주문 경로는 다음 불변조건을 우선합니다.
 sequenceDiagram
     actor User
     participant Security as JwtAuthenticationFilter
-    participant Queue as QueueInterceptor
+    participant Queue as WaitingQueueService
     participant Idempotency as OrderIdempotencyService
     participant Redis
     participant Facade as RedissonLockStockFacade
@@ -27,26 +27,25 @@ sequenceDiagram
     participant DB as MariaDB
 
     User->>Security: POST /api/orders
-    Security->>Queue: 인증 사용자 전달
-    Queue->>Redis: active_user:{userId} 확인
-    alt 활성 토큰 없음
-        Queue-->>User: QUEUE_WAITING
-    else 진입 허용
-        Queue->>Idempotency: userId + Idempotency-Key
-        Idempotency->>Redis: SET NX PROCESSING, TTL 3분
-        alt 이미 처리 중
-            Idempotency-->>User: DUPLICATE_RESOURCE
-        else 완료 응답 존재
-            Idempotency-->>User: 저장된 orderId 반환
-        else 새 요청
-            Idempotency->>Facade: order(...)
-            Facade->>Redis: product:stock:{productId} 락
+    Security->>Idempotency: userId + productId + Idempotency-Key
+    Idempotency->>Redis: 완료 응답 조회 또는 SET NX
+    alt 완료 응답 존재
+        Idempotency-->>User: 저장된 orderId 반환
+    else 새 요청
+        Idempotency->>Facade: order(...)
+        Facade->>Redis: product:stock:{productId} 락
+        Facade->>DB: 완료 주문 재확인
+        Facade->>Queue: isAllowed(userId, productId)
+        Queue->>Redis: 상품별 active 권한 확인
+        alt 활성 권한 없음
+            Queue-->>User: QUEUE_WAITING
+        else 진입 허용
             Facade->>Service: 락 획득 후 호출
             Service->>DB: 재고 차감 + 주문 저장
             DB-->>Service: 쓰기 결과
             Service->>Redis: commit 이후 상품 캐시 제거
             Service-->>Facade: 트랜잭션 완료
-            Facade->>Redis: 락 및 활성 토큰 정리
+            Facade->>Redis: 락 및 상품 활성 권한 정리
             Idempotency->>Redis: 응답 저장, TTL 24시간
             Idempotency-->>User: 201 Created
         end
@@ -59,11 +58,11 @@ sequenceDiagram
 
 - 락 키: `product:stock:{productId}`
 - 최대 대기 시간: 기본 10초
-- 고정 lease: 기본 3초
+- lease: 지정하지 않고 Redisson watchdog으로 소유 중인 락을 갱신
 - 해제 조건: 실제 획득했고 현재 스레드가 소유한 경우
 - 인터럽트: `Thread.currentThread().interrupt()`로 상태 복구
 
-고정 lease와 트랜잭션 timeout 정책의 추가 검토는 로드맵 [#12](https://github.com/juhwanz/eshop-refac/issues/12)에서 진행합니다.
+watchdog과 DB 재고 제약의 결정은 [ADR-0004](adr/0004-protect-stock-with-watchdog-and-check.md)에 기록합니다.
 
 ### 멱등성 상태
 
@@ -78,7 +77,7 @@ sequenceDiagram
   └─ 완료 JSON → 기존 응답 반환
 ```
 
-키 범위는 `idempotency:order:{userId}:{Idempotency-Key}`입니다. 현재 Redis 기반 구현이며 DB 멱등성 레코드와 장애 복구 정책은 [#13](https://github.com/juhwanz/eshop-refac/issues/13)의 범위입니다.
+키 범위는 `idempotency:order:{userId}:{Idempotency-Key}`입니다. Redis는 완료 응답 캐시이고, DB의 `(user_id, idempotency_key)` 유일 제약과 저장된 결과가 최종 방어선입니다. 세부 결정은 [ADR-0005](adr/0005-persist-order-idempotency-in-database.md)에 기록합니다.
 
 ## 주문 취소
 
@@ -88,16 +87,18 @@ sequenceDiagram
 
 ## 대기열
 
-대기열은 두 종류의 Redis 키를 사용합니다.
+대기열은 상품 범위가 드러나는 Redis 키와 대기 상품 인덱스를 사용합니다.
 
 | 키 | 자료구조 | 역할 |
 |---|---|---|
-| `waiting_queue` | Sorted Set | 등록 시각을 score로 사용한 대기 순서 |
-| `active_user:{userId}` | String, TTL 600초 | 주문 생성 경로 진입 허용 토큰 |
+| `queue:{productId}:waiting` | Sorted Set | `INCR` sequence를 score로 사용한 상품별 FIFO |
+| `queue:{productId}:sequence` | String | 같은 시각에도 순서를 결정하는 단조 증가 번호 |
+| `queue:{productId}:active` | Sorted Set | 사용자별 활성 권한과 만료 시각 |
+| `queue:waiting-products` | Sorted Set | 대기자가 있는 상품을 bounded하게 순환 처리 |
 
-`QueueScheduler`는 1초마다 최대 100명을 활성화합니다. 한 번에 최대 1,000명씩 읽는 chunk와 Redis pipeline을 사용하며, ShedLock으로 다중 인스턴스의 중복 스케줄 실행을 막습니다.
+등록은 `POST /api/products/{productId}/queue`, 상태와 순번 조회는 같은 경로의 `GET`을 사용하며 모두 인증이 필요합니다. 상품이 존재해야 등록할 수 있고, 같은 상품에 중복 등록해도 새 sequence를 발급하지 않습니다.
 
-`POST /api/orders/queue`는 `dev`, `test`, `local` 프로필에만 존재하는 PoC 지원 API입니다. 실제 운영 환경의 외부 대기열 시스템을 대신하는 완성형 인터페이스는 아닙니다.
+`QueueScheduler`는 대기 상품과 각 상품의 선두 사용자를 설정된 개수만큼 읽습니다. waiting 제거와 active 권한 발급은 Lua로 원자화하고 ShedLock으로 다중 인스턴스의 중복 스케줄 실행을 막습니다. 활성 권한은 입장 속도 제어이며 동시 실행 수를 보장하지 않습니다. 세부 결정과 Redis Cluster 제약은 [ADR-0007](adr/0007-use-product-scoped-redis-admission-queue.md)에 기록합니다.
 
 ## 캐시 정합성
 

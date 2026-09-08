@@ -24,8 +24,8 @@ import java.util.Optional;
 public class RedissonLockStockFacade {
 
     private final RedissonClient redissonClient;
-    private final OrderService orderService; // 주문 서비스를 주입받음
-    private final WaitingQueueService waitingQueueService; // [추가] 주입 필요
+    private final OrderService orderService;
+    private final WaitingQueueService waitingQueueService;
 
     // 락 획득 최대 대기 시간 (Fail-Fast 유도)
     @Value("${app.order.lock.wait-time:10}")
@@ -38,6 +38,7 @@ public class RedissonLockStockFacade {
     public Long order(Long userId, Long productId, int count, OrderRequestIdentity identity) {
         RLock lock = redissonClient.getLock("product:stock:" + productId);
         boolean lockAcquired = false;
+        boolean admitted = false;
 
         try {
             // lease를 지정하지 않아 트랜잭션 종료까지 watchdog이 락을 갱신합니다.
@@ -54,9 +55,10 @@ public class RedissonLockStockFacade {
                 if (completed.isPresent()) {
                     return completed.get();
                 }
-                if (!waitingQueueService.isAllowed(userId)) {
+                if (!waitingQueueService.isAllowed(userId, productId)) {
                     throw new BusinessException(ErrorCode.QUEUE_WAITING);
                 }
+                admitted = true;
                 return orderService.order(userId, productId, count, identity);
             }
             return orderService.order(userId, productId, count);
@@ -72,12 +74,12 @@ public class RedissonLockStockFacade {
             } catch (RuntimeException cleanupFailure) {
                 log.warn("주문 락 정리 실패 - ProductId: {}", productId, cleanupFailure);
             } finally {
-                // 락을 획득했던 사용자(주문 처리 완료 또는 비즈니스 예외 발생)만 대기열에서 제거하여 큐의 무결성을 유지합니다.
-                if (lockAcquired) {
+                // 해당 상품의 활성 권한을 확인하고 주문을 시도한 경우에만 권한을 소비합니다.
+                if (admitted) {
                     try {
-                        waitingQueueService.removeUser(userId);
+                        waitingQueueService.removeUser(userId, productId);
                     } catch (RuntimeException cleanupFailure) {
-                        log.warn("주문 대기열 정리 실패 - UserId: {}", userId, cleanupFailure);
+                        log.warn("주문 대기열 정리 실패 - UserId: {}, ProductId: {}", userId, productId, cleanupFailure);
                     }
                 }
             }

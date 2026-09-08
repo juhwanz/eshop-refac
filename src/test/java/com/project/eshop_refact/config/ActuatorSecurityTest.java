@@ -1,6 +1,5 @@
 package com.project.eshop_refact.config;
 
-import com.project.eshop_refact.domain.queue.WaitingQueueService;
 import com.project.eshop_refact.global.security.JwtUtil;
 import com.project.eshop_refact.global.security.RestAccessDeniedHandler;
 import com.project.eshop_refact.global.security.RestAuthenticationEntryPoint;
@@ -43,9 +42,6 @@ class ActuatorSecurityTest {
 
     @MockBean
     RedisTemplate<String, String> redisTemplate;
-
-    @MockBean
-    WaitingQueueService waitingQueueService;
 
     @Test
     void healthIsPublicWithoutDetails() throws Exception {
