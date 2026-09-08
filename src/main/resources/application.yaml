@@ -52,7 +52,6 @@ app:
   order:
     lock:
       wait-time: 10 # 대기열 병목 방지를 위한 분산 락 획득 최대 대기 시간 (Fail-Fast 유도)
-      lease-time: 3 # 장애 발생 시 데드락을 방지하기 위한 최대 락 점유 시간
 ---
 
 # 2. Local Profile (개발 환경)

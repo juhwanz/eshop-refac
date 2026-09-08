@@ -28,17 +28,15 @@ public class RedissonLockStockFacade {
 
     // 락 획득 최대 대기 시간 (Fail-Fast 유도)
     @Value("${app.order.lock.wait-time:10}")
-    private long waitTIme;
-    // 데드락 방지를 위해 비즈니스 로직 수행 시간을 고려한 최대 락 점유 시간
-    @Value("${app.order.lock.lease-time:3}")
-    private long leaseTime; //비즈니스 로직 시간을 고려해 3초로 넉넉히 설정
+    private long waitTime;
 
     public Long order(Long userId, Long productId, int count) {
         RLock lock = redissonClient.getLock("product:stock:" + productId);
-        Boolean lockAcquired = false;
+        boolean lockAcquired = false;
 
         try {
-            lockAcquired = lock.tryLock(waitTIme, leaseTime, TimeUnit.SECONDS);
+            // lease를 지정하지 않아 트랜잭션 종료까지 watchdog이 락을 갱신합니다.
+            lockAcquired = lock.tryLock(waitTime, TimeUnit.SECONDS);
 
             if (!lockAcquired) {
                 log.warn("Redisson Lock 획득 실패 - ProductId: {}", productId);
@@ -76,7 +74,7 @@ public class RedissonLockStockFacade {
         boolean lockAcquired = false;
 
         try {
-            lockAcquired = lock.tryLock(waitTIme, leaseTime, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(waitTime, TimeUnit.SECONDS);
 
             if (!lockAcquired) {
                 log.warn("Redisson Lock 획득 실패 (취소) - ProductId: {}", productId);
