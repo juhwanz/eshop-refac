@@ -31,6 +31,7 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
                         nameContains(condition.getName()),
                         priceBetween(condition.getMinPrice(), condition.getMaxPrice())
                 )
+                .orderBy(product.id.desc())
                 .offset(pageable.getOffset())
                 .limit(pageable.getPageSize())
                 .fetch();
@@ -49,7 +50,7 @@ public class ProductRepositoryImpl implements ProductRepositoryCustom {
 
     /**
      * 상품 무한 스크롤 검색 (No-Offset 기반 페이징)
-     * 클러스터링 인덱스(PK)를 활용해 스캔 범위를 최소화하여 대용량 데이터 조회 시 일정한 응답 속도를 보장합니다.
+     * 마지막으로 조회한 ID보다 작은 행을 ID 내림차순으로 조회합니다.
      */
     @Override
     public Slice<Product> searchNoOffset(Long lastProductId, ProductDto.SearchCondition condition, Pageable pageable) {

@@ -22,10 +22,10 @@ E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건
 - 동시에 같은 상품을 주문해도 실제 재고보다 많이 판매하지 않습니다.
 - 분산 락 대기를 DB 트랜잭션 밖에 두어 커넥션 점유 시간을 줄입니다.
 - 동일 주문 요청은 사용자별 멱등성 키로 중복 처리를 방지합니다.
-- 대기열, 캐시, 깊은 페이지 조회처럼 트래픽 증가 후 드러나는 문제를 함께 다룹니다.
+- 대기열, 캐시와 커서 기반 페이지 조회처럼 트래픽 증가 후 드러나는 문제를 함께 다룹니다.
 - 보안 검사와 안전한 테스트 범위를 CI에서 자동 검증합니다.
 
-> 이 문서는 2026-09-05 기준 구현 상태를 설명합니다. 진행 중인 개선 순서는 [로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 관리합니다.
+> 이 문서는 2026-09-09 기준 구현 상태를 설명합니다. 진행 중인 개선 순서는 [로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 관리합니다.
 
 ## 핵심 설계
 
@@ -37,7 +37,7 @@ E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건
 | 유량 제어 | 상품별 Redis ZSet admission queue와 TTL 활성 권한 | 다른 상품의 혼잡 격리, 주문 상품과 권한 일치 |
 | 캐시 정합성 | `AFTER_COMMIT` 이벤트 기반 상품 캐시 제거 | DB 롤백 시 캐시를 먼저 제거하지 않음 |
 | 상품 조회 | QueryDSL Offset `Page` + No-Offset `Slice` | 페이지 이동과 커서 조회 요구를 분리 |
-| 주문 조회 | `default_batch_fetch_size=100` | 컬렉션 fetch join 기반 메모리 페이징 회피 |
+| 주문 조회 | `default_batch_fetch_size=100` | 페이징을 유지하면서 연관 항목을 묶어서 조회 |
 | 인증 | Stateless JWT, Refresh Token Rotation, Redis blacklist | 토큰 재사용과 로그아웃 토큰 접근 방지 |
 
 ```mermaid
@@ -166,7 +166,6 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 | 빠른 단위·슬라이스 테스트 | `./gradlew unitTest` | 없음 |
 | 단위 테스트 + 실행 JAR 검증 | `./gradlew verifyChange` | 없음 |
 | 통합·동시성 테스트 | `./gradlew integrationTest` | Docker(Testcontainers MariaDB·Redis) |
-| 대량 데이터·깊은 페이지 실험 | `./gradlew stressTest -PallowStressTest` | 로컬 MariaDB, 명시적 승인 필요 |
 
 현재 GitHub Actions는 다음을 수행합니다.
 

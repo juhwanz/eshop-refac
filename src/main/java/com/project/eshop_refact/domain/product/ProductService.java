@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 상품 도메인 서비스
- * 클래스 상단에 읽기 전용 트랜잭션을 적용하여 불필요한 스냅샷 생성 및 Dirty Checking 비용을 제거해 조회 성능을 최적화했습니다.
+ * 조회 메서드에는 읽기 전용 트랜잭션을 기본으로 적용합니다.
  */
 @Service
 @RequiredArgsConstructor
@@ -59,7 +59,7 @@ public class ProductService {
 
     /**
      * 상품 무한 스크롤 검색 (No-Offset 기반)
-     * 데이터 증가량과 무관하게 일정한 조회 속도를 보장하기 위해 인덱스 스캔 방식을 사용합니다.
+     * 마지막 상품 ID를 커서로 사용해 다음 구간을 조회합니다.
      */
     public Slice<ProductDto.Response> searchNoOffset(Long lastProductId, ProductDto.SearchCondition condition, Pageable pageable) {
         return productRepository.searchNoOffset(lastProductId, condition, pageable)
@@ -111,4 +111,3 @@ public class ProductService {
         return new ProductDto.Response(product);
     }
 }
-

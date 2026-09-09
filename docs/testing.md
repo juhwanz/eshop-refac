@@ -9,7 +9,7 @@
 | `test`, `unitTest` | 도메인, 서비스, MVC slice, JWT 단위 테스트 | 없음 | 기본 |
 | `verifyChange` | `unitTest` + `bootJar` | 없음 | CI |
 | `integrationTest` | Spring Context, 캐시, 동시성, 조회 통합 테스트 | Docker | 별도 |
-| `stressTest` | 대량 데이터와 깊은 페이지 실험 | local 프로필 MariaDB | 명시적 승인 필요 |
+| `stressTest` | 향후 로컬 대량 데이터 도구를 위한 opt-in task | local 프로필 MariaDB | 명시적 승인 필요 |
 
 `test`와 `unitTest`에서는 다음 항목을 제외합니다.
 
@@ -18,7 +18,7 @@
 - `EshopRefactApplicationTests`
 - `OrderIdempotencyTest`
 
-`ProductDeepPaginationTest`는 개발자 MariaDB에 많은 데이터를 만들 수 있어 `integrationTest`에서도 제외하고 `stressTest`에 포함합니다.
+현재 `stressTest` 대상 테스트는 없습니다. 향후 로컬 데이터를 변경하는 도구를 추가할 때도 `-PallowStressTest` 승인 장치를 유지합니다.
 
 ## 권장 실행 순서
 
@@ -42,14 +42,6 @@
 
 Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동적 접속 정보를 주입합니다. 개발자 로컬 MariaDB·Redis는 사용하지 않으며 컨테이너는 Gradle 테스트 JVM 안에서 공유하고 실행이 끝나면 폐기합니다. Docker가 꺼져 있거나 이미지를 받을 수 없으면 컨테이너 시작 단계에서 인프라 오류로 실패합니다.
 
-### 대량 데이터 실험
-
-이 작업은 로컬 MariaDB 데이터를 변경할 수 있습니다. 데이터 생성과 장시간 실행을 인지하고 승인한 경우에만 실행합니다.
-
-```bash
-./gradlew stressTest -PallowStressTest
-```
-
 ## 테스트가 증명하는 것
 
 | 테스트 | 검증 대상 |
@@ -57,10 +49,9 @@ Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동�
 | `OrderConcurrencyIntegrationTest` | 동시 주문 시 성공/실패 수와 최종 재고, DB 락과 Redis 락 비교 |
 | `OrderAvailabilityIntegrationTest` | 주문 경합 중 조회 요청의 생존 여부 |
 | `OrderIdempotencyTest` | 동일 사용자·동일 키 재요청이 기존 주문 응답을 반환하는지 |
-| `OrderQueryIntegrationTest` | 주문 목록 결과와 batch fetch, fetch join 메모리 페이징 비교 |
+| `OrderQueryIntegrationTest` | 주문 목록의 연관 항목과 상품이 제한된 SQL 수로 batch fetch되는지 |
 | `ProductCacheIntegrationTest` | Cache Miss → Put → AFTER_COMMIT Evict → 최신 값 재조회 |
 | `ProductRepositoryIntegrationTest` | QueryDSL 조건 검색과 No-Offset 커서 경계 |
-| `ProductDeepPaginationTest` | Offset 깊이에 따른 비용과 No-Offset 비교 |
 
 ## 기존 실험 결과
 
@@ -92,18 +83,7 @@ Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동�
 | 순수 락 오버헤드 | 199ms | 432ms |
 | 전체 주문 흐름 | 67ms | 456ms |
 
-서로 수행 범위가 완전히 같은 운영 benchmark는 아닙니다. 성능 결론은 동일 workload와 MariaDB 실행 계획을 수집하는 [#17](https://github.com/juhwanz/eshop-refac/issues/17), [#18](https://github.com/juhwanz/eshop-refac/issues/18), [#25](https://github.com/juhwanz/eshop-refac/issues/25)에서 보강할 예정입니다.
-
-### 깊은 페이지 조회 사례
-
-| 조회 | 관찰 시간 |
-|---|---:|
-| Offset 첫 페이지 | 5ms |
-| Offset 40만 번째 구간 | 36ms |
-| Offset 40만 건 스캔 비교 | 33ms |
-| No-Offset 인덱스 비교 | 25ms |
-
-Offset 검색은 전체 개수를 위한 count query를 사용할 수 있고, No-Offset 검색은 `id < lastProductId`와 `Slice`로 count query 없이 다음 구간을 조회합니다.
+서로 수행 범위가 완전히 같은 운영 benchmark는 아닙니다. 현재 성능 기준은 동일 workload로 반복 실행한 [#17](https://github.com/juhwanz/eshop-refac/issues/17)의 결과만 사용하며, 실제 운영 용량이나 서로 다른 락 전략의 속도 우열로 해석하지 않습니다.
 
 ## GitHub Actions
 
