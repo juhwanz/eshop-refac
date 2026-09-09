@@ -2,7 +2,7 @@
 
 # E-Shop
 
-### 동시 주문의 재고 정합성과 주문 폭주 상황의 조회 가용성을 함께 다루는 이커머스 백엔드
+### 고트래픽 주문·재고 정합성과 상품 단위 대기열을 검증하는 이커머스 백엔드 PoC
 
 [![Build and Publish Image](https://github.com/juhwanz/eshop-refac/actions/workflows/deploy.yml/badge.svg)](https://github.com/juhwanz/eshop-refac/actions/workflows/deploy.yml)
 [![Secret Scan](https://github.com/juhwanz/eshop-refac/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/juhwanz/eshop-refac/actions/workflows/secret-scan.yml)
@@ -17,28 +17,28 @@
 
 ## 프로젝트 소개
 
-E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건을 지켜야 하는가**에 집중한 Spring Boot 기반 백엔드 프로젝트입니다.
+E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건을 지켜야 하는가**에 집중한 Spring Boot 기반 백엔드 PoC입니다.
 
-- 동시에 같은 상품을 주문해도 실제 재고보다 많이 판매하지 않습니다.
+- 지원하는 주문 경로에서 상품별 락과 재고 검증으로 동시 차감을 직렬화하고, DB CHECK로 음수 재고 저장을 차단합니다.
 - 분산 락 대기를 DB 트랜잭션 밖에 두어 커넥션 점유 시간을 줄입니다.
-- 동일 주문 요청은 사용자별 멱등성 키로 중복 처리를 방지합니다.
+- 동일 주문 요청은 Redis 캐시와 DB 유일 제약으로 기존 결과를 복구합니다.
 - 대기열, 캐시와 커서 기반 페이지 조회처럼 트래픽 증가 후 드러나는 문제를 함께 다룹니다.
 - 보안 검사와 안전한 테스트 범위를 CI에서 자동 검증합니다.
 
-> 이 문서는 2026-09-09 기준 구현 상태를 설명합니다. 진행 중인 개선 순서는 [로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 관리합니다.
+> 이 문서는 2026-09-09 기준 구현 상태와 검증 범위를 설명합니다. 운영 중인 서비스의 용량이나 SLO를 나타내지 않으며, 작업 이력은 [로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 확인할 수 있습니다.
 
 ## 핵심 설계
 
 | 관심사 | 현재 구현 | 지키려는 조건 |
 |---|---|---|
-| 재고 동시성 | 상품별 Redisson 분산 락 | 재고가 음수가 되거나 초과 판매되지 않음 |
+| 재고 동시성 | 상품별 Redisson 분산 락, 도메인 검증, DB CHECK | 지원 주문 경로의 동시 차감 직렬화와 음수 재고 저장 차단 |
 | 트랜잭션 경계 | 락 획득 후 `OrderService` 트랜잭션 진입 | 락 대기 중 DB 커넥션을 점유하지 않음 |
-| 주문 멱등성 | Redis `setIfAbsent`, 처리 상태 및 응답 TTL | 완료 요청은 기존 응답 반환, 실패 요청은 재시도 허용 |
+| 주문 멱등성 | Redis 처리 표시·응답 캐시, `(user_id, idempotency_key)` DB 유일 제약 | 완료 요청은 기존 DB 결과 복구, 실패 요청은 재시도 허용 |
 | 유량 제어 | 상품별 Redis ZSet admission queue와 TTL 활성 권한 | 다른 상품의 혼잡 격리, 주문 상품과 권한 일치 |
 | 캐시 정합성 | `AFTER_COMMIT` 이벤트 기반 상품 캐시 제거 | DB 롤백 시 캐시를 먼저 제거하지 않음 |
 | 상품 조회 | QueryDSL Offset `Page` + No-Offset `Slice` | 페이지 이동과 커서 조회 요구를 분리 |
 | 주문 조회 | `default_batch_fetch_size=100` | 페이징을 유지하면서 연관 항목을 묶어서 조회 |
-| 인증 | Stateless JWT, Refresh Token Rotation, Redis blacklist | 토큰 재사용과 로그아웃 토큰 접근 방지 |
+| 인증 | Stateless JWT, Refresh Token Rotation, Redis blacklist | Refresh Token 교체와 로그아웃한 Access Token 거부 |
 
 ```mermaid
 flowchart LR
@@ -176,23 +176,24 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 
 `integrationTest`는 로컬이나 CI에 MariaDB·Redis를 미리 실행하지 않아도 됩니다. Testcontainers가 실행 환경의 Docker로 격리된 컨테이너를 시작합니다. 테스트 분리 기준, 재현 방법과 기존 실험 결과는 [테스트와 검증](docs/testing.md)을 참고하세요.
 
-상품 대기열 기반 주문·조회 부하는 로컬 baseline 3회에서 모두 재고 정합성을 지켰습니다. 실행 조건, p95, 오류율과 회귀 감지용 threshold는 [k6 부하 테스트](docs/load-testing.md)에서 확인할 수 있으며 이 기준은 운영 SLO가 아닙니다.
+상품 대기열 기반 주문·조회 부하는 기록된 commit과 로컬 환경에서 baseline 3회를 수행했고, 각 실행의 성공 주문 수와 최종 재고가 일치했습니다. 실행 조건, p95, 오류율과 로컬 회귀 감지용 threshold는 [k6 부하 테스트](docs/load-testing.md)에서 확인할 수 있으며 이 결과는 운영 용량이나 SLO가 아닙니다.
 
-## 배포 구성
+## 이미지 게시와 참고용 배포 구성
 
 - `Dockerfile`: JDK 21 빌더와 JRE 21 런타임을 분리한 multi-stage 이미지
-- `docker-compose.prod.yml`: Redis와 blue/green 애플리케이션 컨테이너 정의
-- `deploy.sh`: 새 컨테이너 실행, Nginx upstream 전환, 이전 컨테이너 종료
+- `docker-compose.prod.yml`: Redis와 blue/green 애플리케이션 컨테이너를 정의한 참고용 Compose
+- `deploy.sh`: 새 컨테이너 실행, 고정 대기, Nginx upstream 전환과 이전 컨테이너 종료를 순서대로 수행하는 참고용 스크립트
 
-현재 CI는 Docker 이미지 게시까지만 자동화합니다. `deploy.sh`를 원격 서버에서 실행하는 단계는 GitHub Actions에 연결되어 있지 않습니다.
+현재 자동화 범위는 CI 검증과 Docker 이미지 게시까지입니다. 실제 운영 배포 환경은 없으며 `docker-compose.prod.yml`과 `deploy.sh`는 GitHub Actions에 연결되거나 운영에서 검증된 배포 경로가 아닙니다. 특히 `deploy.sh`의 고정 대기는 애플리케이션 준비 상태, 무중단 전환 또는 실패 시 rollback을 보장하지 않습니다.
 
 운영 프로필은 `DB_PASSWORD`와 `JWT_SECRET_KEY`가 비어 있으면 기동에 실패합니다. Actuator는 `/actuator/health`만 노출하며, 그 외 운영 endpoint는 외부 요청을 차단합니다.
 
-## 현재 상태와 다음 개선
+## 현재 상태와 범위
 
-- 완료: 자격 증명 정리와 저장소 이력 정제([#8](https://github.com/juhwanz/eshop-refac/issues/8), [#9](https://github.com/juhwanz/eshop-refac/issues/9))
-- 다음 보안 작업: 운영 설정 fail-fast와 Actuator 접근 정책([#14](https://github.com/juhwanz/eshop-refac/issues/14))
-- 검증 기반: MariaDB·Redis Testcontainers 도입 후 CI 통합 테스트 연결([#16](https://github.com/juhwanz/eshop-refac/issues/16), [#15](https://github.com/juhwanz/eshop-refac/issues/15))
+- 저장소·보안 기반: 자격 증명 정리, 운영 secret fail-fast와 Actuator 최소 공개를 완료했습니다([#8](https://github.com/juhwanz/eshop-refac/issues/8), [#9](https://github.com/juhwanz/eshop-refac/issues/9), [#14](https://github.com/juhwanz/eshop-refac/issues/14)).
+- 검증 기반: MariaDB·Redis Testcontainers를 도입하고 `main` CI에 통합 테스트를 연결했습니다([#16](https://github.com/juhwanz/eshop-refac/issues/16), [#15](https://github.com/juhwanz/eshop-refac/issues/15)).
+- 핵심 PoC: 주문 취소·재고·멱등성, 임시 로그인 잠금과 상품 단위 대기열을 회귀 테스트로 검증했습니다([로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)).
+- 성능 증거: 상품 대기열 기반 주문·조회 workload의 로컬 반복 결과만 유지합니다([#17](https://github.com/juhwanz/eshop-refac/issues/17)). 실제 운영 데이터와 병목이 없어 합성 데이터 기반 인덱스 튜닝은 수행하지 않았습니다([#25](https://github.com/juhwanz/eshop-refac/issues/25)).
 - 스키마: 실제 운영 데이터가 없는 현재 단계에서는 `local`, `prod` 모두 Hibernate `ddl-auto: update`로 관리합니다. 전환 배경과 재검토 조건은 [#33](https://github.com/juhwanz/eshop-refac/issues/33)에 정리되어 있습니다.
 
 ## 상세 문서

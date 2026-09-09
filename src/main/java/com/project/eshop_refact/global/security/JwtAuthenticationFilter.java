@@ -56,7 +56,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Refresh Token이 인증(API 접근) 용도로 오용되는 것을 방지하기 위해 Access Token을 명시적으로 확인합니다.
             if (claims != null && "ACCESS".equals(claims.get("type"))) {
 
-                // Redis 블랙리스트를 조회하여 로그아웃 처리된 토큰의 탈취 및 재사용을 원천 차단합니다.
+                // Redis 블랙리스트에 등록된 로그아웃 Access Token의 인증 요청을 거부합니다.
                 String isLogout = redisTemplate.opsForValue().get("BLACKLIST:" + token);
                 if(StringUtils.hasText(isLogout)){
                     response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "로그아웃된 토큰입니다");

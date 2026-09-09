@@ -46,16 +46,16 @@ Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동�
 
 | 테스트 | 검증 대상 |
 |---|---|
-| `OrderConcurrencyIntegrationTest` | 동시 주문 시 성공/실패 수와 최종 재고, DB 락과 Redis 락 비교 |
-| `OrderAvailabilityIntegrationTest` | 주문 경합 중 조회 요청의 생존 여부 |
+| `OrderConcurrencyIntegrationTest` | 동시 주문 시 성공/실패 수와 최종 재고 |
+| `OrderAvailabilityIntegrationTest` | 제한된 커넥션 풀에서 락 대기 위치에 따른 조회 성공·실패 조건 |
 | `OrderIdempotencyTest` | 동일 사용자·동일 키 재요청이 기존 주문 응답을 반환하는지 |
 | `OrderQueryIntegrationTest` | 주문 목록의 연관 항목과 상품이 제한된 SQL 수로 batch fetch되는지 |
 | `ProductCacheIntegrationTest` | Cache Miss → Put → AFTER_COMMIT Evict → 최신 값 재조회 |
 | `ProductRepositoryIntegrationTest` | QueryDSL 조건 검색과 No-Offset 커서 경계 |
 
-## 기존 실험 결과
+## 검증 사례와 성능 증거
 
-아래 값은 저장소 테스트를 개발 환경에서 실행했을 때 기록한 사례입니다. 고정된 CI benchmark가 아니므로 하드웨어, 데이터 분포, JVM warm-up과 실행 시점에 따라 절대값이 달라질 수 있습니다.
+아래 정합성·가용성 사례는 테스트가 판정하는 조건을 설명합니다. 경과 시간은 하드웨어, JVM 상태와 실행 시점에 따라 달라지고 합격 조건이 아니므로 성능 근거로 사용하지 않습니다. 반복 가능한 성능 자료는 실행 환경과 commit을 기록한 [#17](https://github.com/juhwanz/eshop-refac/issues/17)의 k6 결과만 사용합니다.
 
 ### 재고 정합성
 
@@ -67,23 +67,14 @@ Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동�
 
 핵심 판정은 처리 시간보다 성공 수와 최종 재고가 초기 재고를 위반하지 않는지입니다.
 
-### 주문 경합 중 조회 가용성
+### 제한된 커넥션 풀의 조회 가용성
 
-| 방식 | 관찰된 총 소요 시간 | 조회 성공 | 조회 실패 |
-|---|---:|---:|---:|
-| DB 비관적 락 | 418ms | 0 | 20 |
-| Redis 분산 락 | 8,766ms | 20 | 0 |
+| 시나리오 | 테스트에서 확인하는 조건 |
+|---|---|
+| DB 비관적 락 트랜잭션이 5개 커넥션을 모두 점유 | 별도 조회 20건이 connection timeout으로 실패 |
+| Redis 락 대기가 DB 트랜잭션 밖에서 발생 | 별도 조회 20건이 connection timeout 없이 완료 |
 
-테스트는 DB 경로에서 비관적 락 트랜잭션이 작은 커넥션 풀 전체를 점유하도록 동기화하고, Redis 경로에는 AOP 지연을 주입해 락 대기가 트랜잭션 밖에서 발생하도록 재현합니다. 이 결과는 Redis 방식이 무조건 빠르다는 뜻이 아니라, 락 대기를 DB 밖으로 옮겼을 때 조회 커넥션을 보존할 수 있음을 보여줍니다.
-
-### 락 비용 비교 사례
-
-| 비교 | DB 비관적 락 | Redis 분산 락 |
-|---|---:|---:|
-| 순수 락 오버헤드 | 199ms | 432ms |
-| 전체 주문 흐름 | 67ms | 456ms |
-
-서로 수행 범위가 완전히 같은 운영 benchmark는 아닙니다. 현재 성능 기준은 동일 workload로 반복 실행한 [#17](https://github.com/juhwanz/eshop-refac/issues/17)의 결과만 사용하며, 실제 운영 용량이나 서로 다른 락 전략의 속도 우열로 해석하지 않습니다.
+테스트는 두 경로의 처리 속도를 비교하지 않습니다. 의도적으로 작게 제한한 커넥션 풀에서 락 대기를 DB 트랜잭션 밖에 두는 경계가 조회용 커넥션을 남기는지만 확인합니다. 이 결과를 운영 가용성이나 DB 락과 Redis 락의 속도 우열로 해석하지 않습니다.
 
 ## GitHub Actions
 

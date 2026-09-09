@@ -1,3 +1,4 @@
+# 참고용 배포 구성입니다. 현재 GitHub Actions나 운영 환경에서 실행·검증되는 배포 경로가 아닙니다.
 services:
   # 1. 공통 캐시 서버 (Redis)
   redis:
