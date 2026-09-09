@@ -49,8 +49,7 @@ public class ProductController {
 
     /**
      * 상품 무한 스크롤 검색 API (No-Offset Paging)
-     * 대용량 데이터 조회 시 발생하는 카운트(Count) 쿼리 병목을 제거하고,
-     * 클러스터링 인덱스(PK)를 활용하여 조회 성능을 획기적으로 최적화합니다.
+     * 마지막 상품 ID를 커서로 사용하며 전체 개수 대신 다음 페이지 존재 여부를 반환합니다.
      */
     @GetMapping("/search/no-offset")
     public ResponseEntity<ApiResponse<Slice<ProductDto.Response>>> searchNoOffset(

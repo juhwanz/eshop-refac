@@ -57,7 +57,7 @@ public class OrderDto {
         private int orderPrice;
 
         public OrderItemResponse(OrderItem orderItem) {
-            // 주의: N+1 문제를 방지하기 위해 상위 계층(Repository)에서 Product 엔티티를 Fetch Join으로 미리 로드해야 합니다.
+            // 주문 목록 조회에서는 Hibernate batch fetch로 연관 상품을 묶어서 조회합니다.
             this.productName = orderItem.getProduct().getName();
             this.count = orderItem.getCount();
             this.orderPrice = orderItem.getOrderPrice();

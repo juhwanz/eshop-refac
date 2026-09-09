@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
-// 불필요한 Dirty Checking을 방지하여 전반적인 조회 성능을 최적화합니다.
+// 조회 메서드에는 읽기 전용 트랜잭션을 기본으로 적용합니다.
 @Transactional(readOnly = true)
 public class UserService {
 

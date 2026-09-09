@@ -74,8 +74,7 @@ public class OrderService {
 
     /**
      * 주문 목록 조회
-     * default_batch_fetch_size 설정을 활용하여 1:N 관계 조회 시 발생하는 N+1 문제를 방지하고,
-     * 컬렉션 Fetch Join 페이징 시 발생할 수 있는 메모리 부하(OOM)를 구조적으로 회피합니다.
+     * 컬렉션 Fetch Join과 페이징을 결합하지 않고 연관 항목은 batch fetch로 묶어서 조회합니다.
      */
     public Page<OrderDto.Response> getOrders(Long userId, Pageable pageable){
         User user = userRepository.findById(userId)

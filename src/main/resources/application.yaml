@@ -9,12 +9,12 @@ spring:
     name: eshop-refact
 
   datasource:
-    hikari:   # HikariCP [DB 커넥션 풀 세팅] : 기본값 10개.
-      # 대용량 트래픽 및 동시성 처리를 고려한 커넥션 풀 최적화
+    hikari:
+      # 현재 부하 테스트 기준값이며 운영 환경에서는 DB 용량과 트래픽에 맞춰 재검토합니다.
       maximum-pool-size: 10
       minimum-idle: 3
       connection-timeout: 1000
-      # DB의 wait_timeout보다 짧게 설정하여 예기치 않은 커넥션 끊김(Connection Closed) 방지
+      # MariaDB wait_timeout보다 짧게 유지해야 하는 커넥션 수명 상한입니다.
       max-lifetime: 1800000
     url: "jdbc:mariadb://localhost:${DB_PORT:3306}/eshop"
     username: ${DB_USERNAME:eshop}
@@ -27,12 +27,11 @@ spring:
       port: 6379
 
   jpa:
-    # OSIV: 트랜잭션 범위 밖에서 DB 커넥션 점유 방지
-    # 트랜잭션 종료 시 즉각적인 커넥션 반환을 유도하여 커넥션 풀 고갈(Connection Pool Exhaustion) 방지
+    # 영속성 접근을 서비스 트랜잭션 안으로 제한합니다.
     open-in-view: false
     properties:
       hibernate:
-        # 1:N 연관관계 조회 시 IN 절을 사용해 N+1 문제를 방지하고 메모리 부하 완화
+        # 지연 로딩되는 연관관계를 최대 100개씩 IN 절로 묶어 조회합니다.
         default_batch_fetch_size: 100
 
 jwt:

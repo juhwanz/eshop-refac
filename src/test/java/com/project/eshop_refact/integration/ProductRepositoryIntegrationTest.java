@@ -15,6 +15,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -66,8 +68,8 @@ public class ProductRepositoryIntegrationTest extends MariaDbRedisIntegrationTes
     @DisplayName("QueryDSL 검색: 조건이 없을 경우 전체 조회")
     void searchAllTest() {
         // given
-        productRepository.save(new Product("A", 1000, 1));
-        productRepository.save(new Product("B", 2000, 1));
+        Product first = productRepository.save(new Product("A", 1000, 1));
+        Product second = productRepository.save(new Product("B", 2000, 1));
 
         ProductDto.SearchCondition condition = new ProductDto.SearchCondition(); // 빈 조건
         PageRequest pageRequest = PageRequest.of(0, 10);
@@ -77,6 +79,8 @@ public class ProductRepositoryIntegrationTest extends MariaDbRedisIntegrationTes
 
         // then
         assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getContent()).extracting(Product::getId)
+                .containsExactly(second.getId(), first.getId());
     }
 
     @Test
@@ -105,5 +109,41 @@ public class ProductRepositoryIntegrationTest extends MariaDbRedisIntegrationTes
 
         // Slice 인터페이스의 hasNext()를 통해 다음 페이지(Item1) 존재 여부 검증
         assertThat(result.hasNext()).isTrue();
+    }
+
+    @Test
+    @DisplayName("No-offset 첫 페이지부터 마지막 페이지까지 중복과 누락 없이 조회")
+    void searchNoOffsetAcrossAllPages() {
+        Product p1 = productRepository.save(new Product("Item1", 1000, 10));
+        Product p2 = productRepository.save(new Product("Item2", 2000, 10));
+        Product p3 = productRepository.save(new Product("Item3", 3000, 10));
+        Product p4 = productRepository.save(new Product("Item4", 4000, 10));
+        Product p5 = productRepository.save(new Product("Item5", 5000, 10));
+        ProductDto.SearchCondition condition = new ProductDto.SearchCondition();
+        PageRequest pageRequest = PageRequest.of(0, 2);
+
+        Slice<Product> firstPage = productRepository.searchNoOffset(null, condition, pageRequest);
+        Slice<Product> middlePage = productRepository.searchNoOffset(p4.getId(), condition, pageRequest);
+        Slice<Product> lastPage = productRepository.searchNoOffset(p2.getId(), condition, pageRequest);
+
+        assertThat(firstPage.getContent()).extracting(Product::getId)
+                .containsExactly(p5.getId(), p4.getId());
+        assertThat(firstPage.hasNext()).isTrue();
+        assertThat(middlePage.getContent()).extracting(Product::getId)
+                .containsExactly(p3.getId(), p2.getId());
+        assertThat(middlePage.hasNext()).isTrue();
+        assertThat(lastPage.getContent()).extracting(Product::getId)
+                .containsExactly(p1.getId());
+        assertThat(lastPage.hasNext()).isFalse();
+
+        List<Long> allIds = List.of(
+                firstPage.getContent().get(0).getId(),
+                firstPage.getContent().get(1).getId(),
+                middlePage.getContent().get(0).getId(),
+                middlePage.getContent().get(1).getId(),
+                lastPage.getContent().get(0).getId()
+        );
+        assertThat(allIds).doesNotHaveDuplicates()
+                .containsExactly(p5.getId(), p4.getId(), p3.getId(), p2.getId(), p1.getId());
     }
 }
