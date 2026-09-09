@@ -1,0 +1,4 @@
+[
+  { "email": "load-user-001@example.com", "password": "replace-with-local-test-password" },
+  { "email": "load-user-002@example.com", "password": "replace-with-local-test-password" }
+]
