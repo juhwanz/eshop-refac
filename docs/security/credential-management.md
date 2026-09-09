@@ -16,15 +16,17 @@
 - `DB_USERNAME`: 데이터베이스 사용자
 - `DB_PASSWORD`: 데이터베이스 비밀번호
 - `JWT_SECRET_KEY`: Base64로 인코딩된 256비트 이상의 무작위 JWT 서명키
-- `RDS_HOST`: 운영 Compose를 사용할 때의 데이터베이스 호스트
+- `RDS_HOST`: 참고용 `docker-compose.prod.yml`을 사용할 때의 데이터베이스 호스트
 
 `.env`와 `src/main/resources/application-secret.yaml`은 Git에 추가하지 않는다. 실제 값을 예시 파일에 복사하지 않는다. 공유 시스템에서는 `chmod 600 .env`로 파일을 현재 사용자만 읽고 쓸 수 있게 제한한다.
 
-## 운영 배포
+## 배포 환경을 구성할 때의 요구사항
 
-- 운영 DB에는 관리자 계정 대신 애플리케이션 전용 계정을 사용한다.
-- EC2의 `.env`는 배포 사용자만 읽을 수 있도록 권한을 제한한다.
-- Docker Hub access token과 EC2 SSH key는 GitHub Actions secret으로 관리한다.
+현재 원격 운영 서버와 자동 배포 경로는 없다. `docker-compose.prod.yml`과 `deploy.sh`는 운영에서 검증된 구성이 아니라 향후 배포 환경을 설계할 때 검토할 참고 자료다.
+
+- 실제 운영 DB에는 관리자 계정 대신 애플리케이션 전용 계정을 사용한다.
+- 배포 서버의 `.env`는 배포 사용자만 읽을 수 있도록 권한을 제한한다.
+- Docker Hub access token은 현재 이미지 게시 workflow의 GitHub Actions secret으로 관리한다. SSH key는 원격 배포가 도입될 때 대상과 권한을 정한 뒤 별도로 관리한다.
 - 자격 증명을 교체할 때는 새 값 배포와 상태 확인을 마친 뒤 기존 값을 폐기한다.
 - `prod` 프로필은 `DB_PASSWORD`와 `JWT_SECRET_KEY`가 없거나 공백이면 명확한 오류와 함께 기동을 중단한다.
 

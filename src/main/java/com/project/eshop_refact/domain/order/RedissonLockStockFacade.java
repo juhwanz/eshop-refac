@@ -15,8 +15,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.Optional;
 
 /**
- * 분산 락(Redisson) 기반 재고 동시성 제어 파사드
- * 트랜잭션 진입 전 락을 제어하여 DB 커넥션 점유 시간을 최소화하고, Pub/Sub 기반 구현체로 Redis 부하를 완화합니다.
+ * 분산 락(Redisson) 기반 재고 동시성 제어 파사드입니다.
+ * 상품 락을 획득한 뒤 트랜잭션 서비스를 호출하여 락 대기 중에는 DB 커넥션을 점유하지 않습니다.
  */
 @Slf4j
 @Component
