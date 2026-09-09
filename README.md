@@ -177,6 +177,8 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 
 `integrationTest`는 로컬이나 CI에 MariaDB·Redis를 미리 실행하지 않아도 됩니다. Testcontainers가 실행 환경의 Docker로 격리된 컨테이너를 시작합니다. 테스트 분리 기준, 재현 방법과 기존 실험 결과는 [테스트와 검증](docs/testing.md)을 참고하세요.
 
+상품 대기열 기반 주문·조회 부하는 로컬 baseline 3회에서 모두 재고 정합성을 지켰습니다. 실행 조건, p95, 오류율과 회귀 감지용 threshold는 [k6 부하 테스트](docs/load-testing.md)에서 확인할 수 있으며 이 기준은 운영 SLO가 아닙니다.
+
 ## 배포 구성
 
 - `Dockerfile`: JDK 21 빌더와 JRE 21 런타임을 분리한 multi-stage 이미지
@@ -198,6 +200,7 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 
 - [아키텍처 상세](docs/architecture.md) — 주문, 멱등성, 락, 대기열, 캐시, 조회 설계
 - [테스트와 검증](docs/testing.md) — Gradle task, CI 범위, 통합 테스트와 실험 결과
+- [k6 부하 테스트](docs/load-testing.md) — 대기열 기반 주문·조회 시나리오와 baseline 실행법
 - [자격 증명 관리와 유출 대응](docs/security/credential-management.md)
 - [ADR 목록과 작성 규칙](docs/adr/README.md)
 - [ADR-0001: 운영 자격 증명 관리](docs/adr/0001-production-credential-management.md)
@@ -207,6 +210,7 @@ Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 �
 - [ADR-0005: DB 기반 주문 멱등성](docs/adr/0005-persist-order-idempotency-in-database.md)
 - [ADR-0006: 자동 해제되는 임시 로그인 잠금](docs/adr/0006-use-temporary-login-lockout.md)
 - [ADR-0007: 상품 단위 Redis admission queue](docs/adr/0007-use-product-scoped-redis-admission-queue.md)
+- [ADR-0008: 반복 가능한 baseline 기반 부하 테스트 기준](docs/adr/0008-manage-load-thresholds-from-repeatable-baselines.md)
 - [개선 로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)
 
 ## 프로젝트 구조

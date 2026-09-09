@@ -47,6 +47,10 @@ src/main/resources/application-secret.yaml
 application-secret.yaml
 .env
 
+# k6 local inputs and generated results
+load-test.users.json
+load-test-results/
+
 tokens.csv
 
 ### Runtime data ###
