@@ -9,26 +9,19 @@
 
 ## 로컬 실행
 
-`.env.example`을 참고해 저장소에서 추적되지 않는 `.env`를 만들거나 셸 환경변수를 설정한다.
+`.env.example`을 복사해 저장소에서 추적되지 않는 `.env`를 사용하거나 셸 환경변수로 값을 주입한다. 실제 값을 예시 파일에 복사하지 않으며 공유 시스템에서는 `chmod 600 .env`로 현재 사용자만 읽고 쓸 수 있게 제한한다.
 
-필수 값은 다음과 같다.
-
-- `DB_USERNAME`: 데이터베이스 사용자
-- `DB_PASSWORD`: 데이터베이스 비밀번호
-- `JWT_SECRET_KEY`: Base64로 인코딩된 256비트 이상의 무작위 JWT 서명키
-- `RDS_HOST`: 참고용 `docker-compose.prod.yml`을 사용할 때의 데이터베이스 호스트
-
-`.env`와 `src/main/resources/application-secret.yaml`은 Git에 추가하지 않는다. 실제 값을 예시 파일에 복사하지 않는다. 공유 시스템에서는 `chmod 600 .env`로 파일을 현재 사용자만 읽고 쓸 수 있게 제한한다.
+필수 환경변수, JWT 서명키 생성과 MariaDB 준비 절차는 [로컬 실행 가이드](../getting-started.md)에서 설명한다.
 
 ## 배포 환경을 구성할 때의 요구사항
 
-현재 원격 운영 서버와 자동 배포 경로는 없다. `docker-compose.prod.yml`과 `deploy.sh`는 운영에서 검증된 구성이 아니라 향후 배포 환경을 설계할 때 검토할 참고 자료다.
+현재 원격 운영 서버와 자동 배포 경로는 없다. Compose 파일과 `deploy.sh`의 용도·한계는 [이미지 게시와 참고용 배포](../deployment.md)에서 설명한다.
 
 - 실제 운영 DB에는 관리자 계정 대신 애플리케이션 전용 계정을 사용한다.
 - 배포 서버의 `.env`는 배포 사용자만 읽을 수 있도록 권한을 제한한다.
 - Docker Hub access token은 현재 이미지 게시 workflow의 GitHub Actions secret으로 관리한다. SSH key는 원격 배포가 도입될 때 대상과 권한을 정한 뒤 별도로 관리한다.
 - 자격 증명을 교체할 때는 새 값 배포와 상태 확인을 마친 뒤 기존 값을 폐기한다.
-- `prod` 프로필은 `DB_PASSWORD`와 `JWT_SECRET_KEY`가 없거나 공백이면 명확한 오류와 함께 기동을 중단한다.
+- 운영에 필요한 값은 배포 전에 검증하고 필수 비밀정보가 누락된 애플리케이션은 기동하지 않는다.
 
 ## 운영 endpoint
 
@@ -65,3 +58,9 @@ GitHub secret scanning과 push protection을 활성화한다. CI의 Gitleaks 검
 GitHub가 관리하는 과거 PR #1, #2, #3, #4, #7의 읽기 전용 ref에는 재작성 전 커밋이 남아 있다. 개인 프로젝트의 제한된 영향과 이미 무효화된 자격 증명을 고려해 이 잔여 위험을 수용한다. 해당 ref를 완전히 제거하려면 GitHub Support의 서버 측 purge가 필요하다.
 
 재작성 전 clone이나 브랜치를 다시 push하면 제거한 이력이 복원될 수 있으므로 사용하지 않는다.
+
+## 관련 문서
+
+- [로컬 실행 가이드](../getting-started.md)
+- [이미지 게시와 참고용 배포](../deployment.md)
+- [ADR-0001: 운영 자격 증명 관리](../adr/0001-production-credential-management.md)

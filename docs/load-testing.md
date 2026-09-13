@@ -112,4 +112,9 @@ K6_PROFILE=regression k6 run load-test.js
 - Smoke와 baseline 모두 실제 주문을 생성한다.
 - 재고를 원상 복구하거나 별도 테스트 상품을 준비한 뒤 다음 반복을 실행한다.
 - 운영 SLO, Grafana 대시보드, DB 락과 Redis 락 비교 benchmark는 이 테스트 범위에 포함하지 않는다.
-- 반복 baseline과 threshold 관리 원칙은 [ADR-0008](adr/0008-manage-load-thresholds-from-repeatable-baselines.md)에 기록한다.
+
+## 관련 문서
+
+- [테스트와 검증](testing.md)
+- [아키텍처 상세](architecture.md)
+- [ADR-0008: 반복 가능한 baseline으로 부하 테스트 기준을 관리한다](adr/0008-manage-load-thresholds-from-repeatable-baselines.md)

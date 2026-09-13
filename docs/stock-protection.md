@@ -1,5 +1,7 @@
 # 재고 락과 DB 제약 적용
 
+## 적용 범위와 한계
+
 주문과 취소는 상품별 Redis 락을 획득한 뒤 DB 트랜잭션을 실행한다. 고정 lease 없이 Redisson watchdog으로 락을 갱신하며, 서비스의 커밋 또는 롤백 이후 소유 스레드가 해제한다. 획득 대기 시간은 `app.order.lock.wait-time`으로 설정한다. 기존 `lease-time` 설정은 제거했다.
 
 watchdog은 Redis 통신 단절이나 긴 JVM 정지에서 완전한 상호 배제를 보장하지 않는다. `stock_quantity >= 0` CHECK는 음수 저장을 차단하지만 갱신 유실이나 모든 장애 상황의 초과 판매를 차단하는 제약은 아니다.
@@ -37,3 +39,10 @@ DDL은 테이블 잠금을 수반할 수 있으며 일반 트랜잭션 롤백으
 ./gradlew test --tests '*RedissonLockStockFacadeTest'
 ./gradlew integrationTest --tests '*StockProtectionIntegrationTest'
 ```
+
+## 관련 문서
+
+- [아키텍처 상세](architecture.md)
+- [주문 멱등성](order-idempotency.md)
+- [테스트와 검증](testing.md)
+- [ADR-0004: 재고 보호에 Redisson watchdog과 DB CHECK를 사용한다](adr/0004-protect-stock-with-watchdog-and-check.md)
