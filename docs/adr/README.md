@@ -2,6 +2,20 @@
 
 이 디렉터리는 장기간 유지되어야 할 중요한 기술적 의사결정을 기록한다.
 
+## 결정 목록
+
+| 번호 | 결정 | 상태 | 날짜 |
+|---|---|---|---|
+| [0001](0001-production-credential-management.md) | 운영 자격 증명은 환경변수와 최소 권한 계정으로 관리한다 | 채택 | 2026-09-04 |
+| [0002](0002-use-mariadb-and-hibernate-schema-update.md) | MariaDB와 Hibernate 자동 schema 관리를 사용한다 | 채택·일부 대체 | 2026-09-05 |
+| [0003](0003-gate-image-publishing-on-ci-verification.md) | CI 검증 성공 후 commit SHA 이미지 게시 | 채택 | 2026-09-06 |
+| [0004](0004-protect-stock-with-watchdog-and-check.md) | 재고 보호에 Redisson watchdog과 DB CHECK를 사용한다 | 채택 | 2026-09-08 |
+| [0005](0005-persist-order-idempotency-in-database.md) | 주문 멱등성의 최종 기준을 DB에 둔다 | 채택 | 2026-09-08 |
+| [0006](0006-use-temporary-login-lockout.md) | 로그인 실패는 별도 트랜잭션의 임시 잠금으로 제한한다 | 채택 | 2026-09-08 |
+| [0007](0007-use-product-scoped-redis-admission-queue.md) | 상품 단위 Redis admission queue를 사용한다 | 채택 | 2026-09-08 |
+| [0008](0008-manage-load-thresholds-from-repeatable-baselines.md) | 반복 가능한 baseline으로 부하 테스트 기준을 관리한다 | 채택 | 2026-09-09 |
+| [0009](0009-use-mariadb-for-integration-tests.md) | 통합 테스트 데이터베이스를 MariaDB로 통일한다 | 채택 | 2026-09-13 |
+
 ## 생성 규칙
 
 - 사용자가 ADR 기록을 승인한 경우에만 생성한다.

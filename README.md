@@ -11,34 +11,24 @@
 ![MariaDB](https://img.shields.io/badge/MariaDB-11.8-003545?logo=mariadb&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-Redisson-DC382D?logo=redis&logoColor=white)
 
-[핵심 설계](#핵심-설계) · [빠른 시작](#빠른-시작) · [API](#api-요약) · [테스트](#테스트와-ci) · [상세 문서](#상세-문서)
+[핵심 설계](#핵심-설계) · [빠른 시작](#빠른-시작) · [검증](#검증) · [상세 문서](#상세-문서)
 
 </div>
 
 ## 프로젝트 소개
 
-E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건을 지켜야 하는가**에 집중한 Spring Boot 기반 백엔드 PoC입니다.
+E-Shop은 CRUD 기능의 수보다 **트래픽이 몰릴 때 어떤 불변조건을 지켜야 하는가**에 집중한 Java 21·Spring Boot 기반 이커머스 백엔드 PoC입니다. 재고 정합성, 주문 멱등성, 분산 락의 트랜잭션 경계, 상품 단위 대기열과 캐시 정합성을 실제 MariaDB·Redis 통합 테스트로 검증합니다.
 
-- 지원하는 주문 경로에서 상품별 락과 재고 검증으로 동시 차감을 직렬화하고, DB CHECK로 음수 재고 저장을 차단합니다.
-- 분산 락 대기를 DB 트랜잭션 밖에 두어 커넥션 점유 시간을 줄입니다.
-- 동일 주문 요청은 Redis 캐시와 DB 유일 제약으로 기존 결과를 복구합니다.
-- 대기열, 캐시와 커서 기반 페이지 조회처럼 트래픽 증가 후 드러나는 문제를 함께 다룹니다.
-- 보안 검사와 안전한 테스트 범위를 CI에서 자동 검증합니다.
-
-> 이 문서는 2026-09-09 기준 구현 상태와 검증 범위를 설명합니다. 운영 중인 서비스의 용량이나 SLO를 나타내지 않으며, 작업 이력은 [로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 확인할 수 있습니다.
+> 이 문서는 2026-09-13 기준 구현 상태를 설명합니다. 로컬 반복 검증 결과는 운영 용량이나 SLO를 의미하지 않으며, 작업 이력은 [개선 로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)에서 확인할 수 있습니다.
 
 ## 핵심 설계
 
-| 관심사 | 현재 구현 | 지키려는 조건 |
+| 핵심 문제 | 현재 접근 | 지키려는 조건 |
 |---|---|---|
-| 재고 동시성 | 상품별 Redisson 분산 락, 도메인 검증, DB CHECK | 지원 주문 경로의 동시 차감 직렬화와 음수 재고 저장 차단 |
-| 트랜잭션 경계 | 락 획득 후 `OrderService` 트랜잭션 진입 | 락 대기 중 DB 커넥션을 점유하지 않음 |
-| 주문 멱등성 | Redis 처리 표시·응답 캐시, `(user_id, idempotency_key)` DB 유일 제약 | 완료 요청은 기존 DB 결과 복구, 실패 요청은 재시도 허용 |
-| 유량 제어 | 상품별 Redis ZSet admission queue와 TTL 활성 권한 | 다른 상품의 혼잡 격리, 주문 상품과 권한 일치 |
-| 캐시 정합성 | `AFTER_COMMIT` 이벤트 기반 상품 캐시 제거 | DB 롤백 시 캐시를 먼저 제거하지 않음 |
-| 상품 조회 | QueryDSL Offset `Page` + No-Offset `Slice` | 페이지 이동과 커서 조회 요구를 분리 |
-| 주문 조회 | `default_batch_fetch_size=100` | 페이징을 유지하면서 연관 항목을 묶어서 조회 |
-| 인증 | Stateless JWT, Refresh Token Rotation, Redis blacklist | Refresh Token 교체와 로그아웃한 Access Token 거부 |
+| 재고 정합성 | 상품별 Redisson 락, 도메인 검증, DB CHECK 선언 | 지원 주문 경로의 동시 차감 직렬화와 CHECK 적용 스키마의 음수 재고 저장 차단 |
+| 중복 주문 | Redis 처리 표시·응답 캐시, DB 멱등성 키 유일 제약 | 완료 요청의 기존 결과 복구와 실패 요청의 안전한 재시도 |
+| 유량 제어 | 상품별 Redis ZSet admission queue와 TTL 활성 권한 | 다른 상품의 혼잡 격리와 주문 상품·활성 권한 일치 |
+| 데이터 정합성·조회 | 커밋 이후 캐시 제거, Offset·No-Offset 조회 분리 | 롤백 안전한 캐시와 목적에 맞는 페이지 조회 |
 
 ```mermaid
 flowchart LR
@@ -55,176 +45,49 @@ flowchart LR
     Redis -. cached response .-> Idempotency
 ```
 
-주문 처리 순서와 각 경계의 선택 이유는 [아키텍처 상세](docs/architecture.md)에 정리했습니다.
+락과 DB 트랜잭션의 경계, 주문·취소 흐름, 대기열과 조회 전략은 [아키텍처 상세](docs/architecture.md)에서 설명합니다. `Product` 매핑의 DB CHECK는 신규 테이블에 생성되며 기존 테이블에는 [별도 적용 절차](docs/stock-protection.md)가 필요합니다.
 
-## 기술 스택
-
-| 구분 | 기술 |
-|---|---|
-| Language | Java 21 |
-| Application | Spring Boot 3.3.0, Spring Web, Validation |
-| Persistence | Spring Data JPA, Hibernate, QueryDSL 5.1.0 |
-| Database | MariaDB 11.8, H2(test) |
-| Redis | Spring Data Redis, Redisson 3.31.0, ShedLock 5.13.0 |
-| Security | Spring Security, JWT(JJWT 0.11.5) |
-| Observability | Spring Boot Actuator, Micrometer |
-| API Docs | SpringDoc OpenAPI 2.6.0 |
-| Build & Delivery | Gradle Wrapper, Docker, Docker Compose, GitHub Actions |
-
-## 주요 기능
-
-- **사용자**: 회원가입, 로그인, Access/Refresh Token 발급, RTR 재발급, 로그아웃과 Access Token blacklist
-- **상품**: 등록, 단건 캐시 조회, 조건 검색, No-Offset 조회, 가격 수정
-- **주문**: 멱등 주문 생성, 사용자별 주문 목록, 소유권 검증을 포함한 주문 취소
-- **대기열**: Redis ZSet 등록, 1초마다 최대 100명 활성화, ShedLock 기반 중복 스케줄 방지
+주요 기술은 Spring Data JPA, QueryDSL, MariaDB, Spring Data Redis, Redisson, Spring Security, JWT, ShedLock, Testcontainers와 GitHub Actions입니다.
 
 ## 빠른 시작
 
-### 요구사항
-
-- Java 21
-- Docker와 Docker Compose
-
-### 1. 환경변수 준비
+Java 21, 로컬 MariaDB 11.8과 Docker가 필요합니다. MariaDB 사용자 생성, JWT 키 준비와 환경변수 설명은 [로컬 실행 가이드](docs/getting-started.md)를 먼저 확인하세요.
 
 ```bash
 cp .env.example .env
-```
-
-`.env`에 로컬 환경 값을 설정합니다. 실제 비밀값은 Git에 추가하지 않습니다.
-
-```dotenv
-DB_USERNAME=eshop
-DB_PASSWORD=change-me
-DB_PORT=3306
-REDIS_PORT=6380
-JWT_SECRET_KEY=base64-encoded-random-key
-```
-
-### 2. 로컬 MariaDB 준비
-
-최초 한 번 로컬 MariaDB에 application database와 사용자를 준비합니다. SQL의 비밀번호는 `.env`의 `DB_PASSWORD`와 같아야 합니다.
-
-```bash
-sudo mariadb
-```
-
-```sql
-CREATE DATABASE IF NOT EXISTS eshop CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'eshop'@'localhost' IDENTIFIED BY 'change-me';
-ALTER USER 'eshop'@'localhost' IDENTIFIED BY 'change-me';
-GRANT ALL PRIVILEGES ON eshop.* TO 'eshop'@'localhost';
-FLUSH PRIVILEGES;
-exit;
-```
-
-로컬 프로필로 애플리케이션을 실행하면 Hibernate가 필요한 테이블을 생성하거나 갱신합니다.
-
-### 3. Docker Desktop 실행
-
-Spring Boot는 `docker-compose.dev.yml`의 Redis를 자동으로 시작하고 애플리케이션 종료 시 함께 중지합니다. 기본 Redis 포트는 다른 프로젝트와의 충돌을 피하도록 6380을 사용하며, 필요하면 `.env`의 `REDIS_PORT`를 변경할 수 있습니다.
-
-### 4. 애플리케이션 실행
-
-```bash
+# .env의 DB_PASSWORD와 JWT_SECRET_KEY를 실제 로컬 값으로 변경
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
-`.env`는 애플리케이션과 Docker Compose가 자동으로 읽습니다. Redis 자동 실행을 위해 Docker Desktop은 실행 중이어야 합니다.
+로컬 프로필은 호스트 MariaDB에 연결하고 `docker-compose.dev.yml`의 Redis를 애플리케이션 생명주기에 맞춰 실행합니다.
 
-- API 진입점: <http://localhost:8080> (Swagger UI로 이동)
+- API 진입점: <http://localhost:8080>
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
-- Health endpoint: <http://localhost:8080/actuator/health> (인증 없이 상태만 공개, 상세 정보 비공개)
+- Health endpoint: <http://localhost:8080/actuator/health>
 
-로컬 MariaDB 데이터는 기존 MariaDB 저장공간을 사용합니다. 자격 증명 원칙과 유출 대응은 [보안 문서](docs/security/credential-management.md)를 참고하세요.
+인증 조건, 주문 멱등성 헤더와 전체 endpoint는 [API 안내](docs/api.md)를 참고하세요.
 
-## API 요약
+## 검증
 
-| Method | Path | 인증 | 설명 |
-|---|---|---|---|
-| `POST` | `/api/users/signup` | 공개 | 회원가입 |
-| `POST` | `/api/users/login` | 공개 | Access/Refresh Token 발급 |
-| `POST` | `/api/users/reissue` | 공개 | Refresh Token 검증 및 RTR 재발급 |
-| `POST` | `/api/users/logout` | 사용자 | Refresh Token 제거 및 Access Token blacklist |
-| `GET` | `/api/products/{productId}` | 공개 | 상품 단건 조회 |
-| `GET` | `/api/products/search` | 공개 | 조건 검색과 Offset 페이지 조회 |
-| `GET` | `/api/products/search/no-offset` | 공개 | 내림차순 커서 기반 `Slice` 조회 |
-| `POST` | `/api/products` | `ADMIN` | 상품 등록 |
-| `PATCH` | `/api/products/{productId}/price` | `ADMIN` | 가격 수정 |
-| `POST` | `/api/products/{productId}/queue` | 사용자 | 상품 대기열 등록 또는 현재 상태 반환 |
-| `GET` | `/api/products/{productId}/queue` | 사용자 | 상품 대기열 상태와 현재 순번 조회 |
-| `POST` | `/api/orders` | 사용자 + 대기열 | `Idempotency-Key` 기반 주문 생성 |
-| `GET` | `/api/orders` | 사용자 | 내 주문 목록 조회 |
-| `PATCH` | `/api/orders/{orderId}/cancel` | 주문 소유자 | 주문 취소와 재고 복구 |
-
-공통 응답은 `ApiResponse`, 오류 응답은 `ErrorResponse` 형식을 사용합니다.
-
-## 테스트와 CI
-
-| 목적 | 명령 | 외부 서비스 |
+| 목적 | 명령 | 필요한 인프라 |
 |---|---|---|
 | 빠른 단위·슬라이스 테스트 | `./gradlew unitTest` | 없음 |
-| 단위 테스트 + 실행 JAR 검증 | `./gradlew verifyChange` | 없음 |
-| 통합·동시성 테스트 | `./gradlew integrationTest` | Docker(Testcontainers MariaDB·Redis) |
+| 단위 테스트와 실행 JAR 검증 | `./gradlew verifyChange` | 없음 |
+| 통합·동시성 테스트 | `./gradlew integrationTest` | Docker |
 
-현재 GitHub Actions는 다음을 수행합니다.
-
-- 모든 push와 PR: 금지 경로 검사, 전체 이력 Gitleaks 검사
-- `main` 대상 PR과 `main` push: `./gradlew clean verifyChange` 후 Testcontainers 기반 `./gradlew integrationTest`
-- 검증 실패: Gradle 테스트 결과와 HTML 보고서를 7일간 artifact로 보존
-- `main` push: 모든 검증 성공 후 Docker Hub에 commit SHA 태그와 보조 `latest` 태그 게시
-
-`integrationTest`는 로컬이나 CI에 MariaDB·Redis를 미리 실행하지 않아도 됩니다. Testcontainers가 실행 환경의 Docker로 격리된 컨테이너를 시작합니다. 테스트 분리 기준, 재현 방법과 기존 실험 결과는 [테스트와 검증](docs/testing.md)을 참고하세요.
-
-상품 대기열 기반 주문·조회 부하는 기록된 commit과 로컬 환경에서 baseline 3회를 수행했고, 각 실행의 성공 주문 수와 최종 재고가 일치했습니다. 실행 조건, p95, 오류율과 로컬 회귀 감지용 threshold는 [k6 부하 테스트](docs/load-testing.md)에서 확인할 수 있으며 이 결과는 운영 용량이나 SLO가 아닙니다.
-
-## 이미지 게시와 참고용 배포 구성
-
-- `Dockerfile`: JDK 21 빌더와 JRE 21 런타임을 분리한 multi-stage 이미지
-- `docker-compose.prod.yml`: Redis와 blue/green 애플리케이션 컨테이너를 정의한 참고용 Compose
-- `deploy.sh`: 새 컨테이너 실행, 고정 대기, Nginx upstream 전환과 이전 컨테이너 종료를 순서대로 수행하는 참고용 스크립트
-
-현재 자동화 범위는 CI 검증과 Docker 이미지 게시까지입니다. 실제 운영 배포 환경은 없으며 `docker-compose.prod.yml`과 `deploy.sh`는 GitHub Actions에 연결되거나 운영에서 검증된 배포 경로가 아닙니다. 특히 `deploy.sh`의 고정 대기는 애플리케이션 준비 상태, 무중단 전환 또는 실패 시 rollback을 보장하지 않습니다.
-
-운영 프로필은 `DB_PASSWORD`와 `JWT_SECRET_KEY`가 비어 있으면 기동에 실패합니다. Actuator는 `/actuator/health`만 노출하며, 그 외 운영 endpoint는 외부 요청을 차단합니다.
-
-## 현재 상태와 범위
-
-- 저장소·보안 기반: 자격 증명 정리, 운영 secret fail-fast와 Actuator 최소 공개를 완료했습니다([#8](https://github.com/juhwanz/eshop-refac/issues/8), [#9](https://github.com/juhwanz/eshop-refac/issues/9), [#14](https://github.com/juhwanz/eshop-refac/issues/14)).
-- 검증 기반: MariaDB·Redis Testcontainers를 도입하고 `main` CI에 통합 테스트를 연결했습니다([#16](https://github.com/juhwanz/eshop-refac/issues/16), [#15](https://github.com/juhwanz/eshop-refac/issues/15)).
-- 핵심 PoC: 주문 취소·재고·멱등성, 임시 로그인 잠금과 상품 단위 대기열을 회귀 테스트로 검증했습니다([로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)).
-- 성능 증거: 상품 대기열 기반 주문·조회 workload의 로컬 반복 결과만 유지합니다([#17](https://github.com/juhwanz/eshop-refac/issues/17)). 실제 운영 데이터와 병목이 없어 합성 데이터 기반 인덱스 튜닝은 수행하지 않았습니다([#25](https://github.com/juhwanz/eshop-refac/issues/25)).
-- 스키마: 실제 운영 데이터가 없는 현재 단계에서는 `local`, `prod` 모두 Hibernate `ddl-auto: update`로 관리합니다. 전환 배경과 재검토 조건은 [#33](https://github.com/juhwanz/eshop-refac/issues/33)에 정리되어 있습니다.
+통합 테스트는 Testcontainers의 MariaDB·Redis를 사용합니다. 테스트 분리, CI 범위와 주요 검증이 증명하는 내용은 [테스트와 검증](docs/testing.md)을 참고하세요.
 
 ## 상세 문서
 
-- [아키텍처 상세](docs/architecture.md) — 주문, 멱등성, 락, 대기열, 캐시, 조회 설계
-- [테스트와 검증](docs/testing.md) — Gradle task, CI 범위, 통합 테스트와 실험 결과
-- [k6 부하 테스트](docs/load-testing.md) — 대기열 기반 주문·조회 시나리오와 baseline 실행법
-- [자격 증명 관리와 유출 대응](docs/security/credential-management.md)
-- [ADR 목록과 작성 규칙](docs/adr/README.md)
-- [ADR-0001: 운영 자격 증명 관리](docs/adr/0001-production-credential-management.md)
-- [ADR-0002: MariaDB와 Hibernate 자동 schema 관리](docs/adr/0002-use-mariadb-and-hibernate-schema-update.md)
-- [ADR-0003: CI 검증 성공 후 commit SHA 이미지 게시](docs/adr/0003-gate-image-publishing-on-ci-verification.md)
-- [ADR-0004: Redisson watchdog과 DB 재고 제약](docs/adr/0004-protect-stock-with-watchdog-and-check.md)
-- [ADR-0005: DB 기반 주문 멱등성](docs/adr/0005-persist-order-idempotency-in-database.md)
-- [ADR-0006: 자동 해제되는 임시 로그인 잠금](docs/adr/0006-use-temporary-login-lockout.md)
-- [ADR-0007: 상품 단위 Redis admission queue](docs/adr/0007-use-product-scoped-redis-admission-queue.md)
-- [ADR-0008: 반복 가능한 baseline 기반 부하 테스트 기준](docs/adr/0008-manage-load-thresholds-from-repeatable-baselines.md)
-- [개선 로드맵 #27](https://github.com/juhwanz/eshop-refac/issues/27)
-
-## 프로젝트 구조
-
-```text
-src/main/java/com/project/eshop_refact
-├── domain
-│   ├── order       # 주문, 멱등성, 분산 락
-│   ├── product     # 상품, QueryDSL, 캐시
-│   ├── queue       # 대기열과 스케줄러
-│   └── user        # 사용자와 토큰 생명주기
-└── global
-    ├── common      # 공통 응답
-    ├── config      # JPA, Redis, QueryDSL, ShedLock
-    ├── exception   # 비즈니스 오류 규격
-    └── security    # JWT와 Spring Security
-```
+| 문서 | 내용 |
+|---|---|
+| [로컬 실행 가이드](docs/getting-started.md) | 환경변수, MariaDB, Redis와 애플리케이션 실행 |
+| [API 안내](docs/api.md) | endpoint, 인증, 멱등성 키와 응답 규격 |
+| [아키텍처 상세](docs/architecture.md) | 주문, 락, 대기열, 캐시, 조회와 인증 설계 |
+| [주문 멱등성](docs/order-idempotency.md) | 키 계약, DB 유일 제약과 장애 경계 |
+| [재고 보호](docs/stock-protection.md) | Redisson watchdog과 DB CHECK 적용 |
+| [테스트와 검증](docs/testing.md) | Gradle task, CI와 통합 테스트 |
+| [k6 부하 테스트](docs/load-testing.md) | 반복 baseline과 로컬 회귀 기준 |
+| [이미지 게시와 참고용 배포](docs/deployment.md) | Docker 이미지, Compose와 배포 한계 |
+| [자격 증명 관리와 유출 대응](docs/security/credential-management.md) | 비밀정보 관리와 사고 대응 |
+| [Architecture Decision Records](docs/adr/README.md) | 채택한 결정 목록과 작성 규칙 |
