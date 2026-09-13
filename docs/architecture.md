@@ -46,7 +46,7 @@ sequenceDiagram
             Service->>Redis: commit 이후 상품 캐시 제거
             Service-->>Facade: 트랜잭션 완료
             Facade->>Redis: 락 및 상품 활성 권한 정리
-            Idempotency->>Redis: 응답 저장, TTL 24시간
+            Idempotency->>Redis: 완료 응답 저장
             Idempotency-->>User: 201 Created
         end
     end
@@ -62,22 +62,23 @@ sequenceDiagram
 - 해제 조건: 실제 획득했고 현재 스레드가 소유한 경우
 - 인터럽트: `Thread.currentThread().interrupt()`로 상태 복구
 
-watchdog과 DB 재고 제약의 결정은 [ADR-0004](adr/0004-protect-stock-with-watchdog-and-check.md)에 기록합니다.
+watchdog과 DB 재고 제약의 결정은 [ADR-0004](adr/0004-protect-stock-with-watchdog-and-check.md), 기존 MariaDB 테이블의 CHECK 확인·적용 절차는 [재고 보호 문서](stock-protection.md)에 기록합니다.
 
 ### 멱등성 상태
 
 ```text
-키 없음
-  └─ SET NX 성공 → PROCESSING (3분)
-       ├─ 주문 성공 → {"orderId": ...} (24시간)
-       └─ 주문 실패 → 키 삭제 → 클라이언트 재시도 가능
-
-동일 키 재요청
-  ├─ PROCESSING → 중복 처리 오류
-  └─ 완료 JSON → 기존 응답 반환
+Redis 조회
+  ├─ 완료 JSON → 요청 fingerprint 검증 후 기존 응답 반환
+  └─ 키 없음 또는 PROCESSING → DB 완료 주문 조회
+       ├─ 완료 주문 존재 → 요청 fingerprint 검증 후 기존 응답 반환
+       └─ 완료 주문 없음 → SET NX로 PROCESSING 선점 시도 후 주문 경로 진행
+            ├─ 주문 성공 → 완료 응답 캐시
+            └─ 주문 실패 → 자신이 선점한 PROCESSING만 삭제 → 클라이언트 재시도 가능
 ```
 
-키 범위는 `idempotency:order:{userId}:{Idempotency-Key}`입니다. Redis는 완료 응답 캐시이고, DB의 `(user_id, idempotency_key)` 유일 제약과 저장된 결과가 최종 방어선입니다. 세부 결정은 [ADR-0005](adr/0005-persist-order-idempotency-in-database.md)에 기록합니다.
+`PROCESSING`은 중복 요청을 즉시 거절하는 상태가 아닙니다. 선점에 실패한 요청도 상품 락 안에서 DB 완료 주문을 다시 확인하고, DB 유일 제약과 저장된 fingerprint로 기존 결과 복구 또는 요청 충돌을 판정합니다. Redis는 처리 표시와 완료 응답 캐시이고 DB 결과가 최종 방어선입니다.
+
+키 형식, TTL, payload 충돌과 장애 처리 계약은 [주문 멱등성 문서](order-idempotency.md), 결정 배경은 [ADR-0005](adr/0005-persist-order-idempotency-in-database.md)에 기록합니다.
 
 ## 주문 취소
 
@@ -146,3 +147,10 @@ No-Offset 커서는 마지막으로 받은 상품 ID입니다. 정렬 방향이 
 - [ProductCacheEventListener](../src/main/java/com/project/eshop_refact/domain/product/ProductCacheEventListener.java)
 - [ProductRepositoryImpl](../src/main/java/com/project/eshop_refact/domain/product/ProductRepositoryImpl.java)
 - [JwtAuthenticationFilter](../src/main/java/com/project/eshop_refact/global/security/JwtAuthenticationFilter.java)
+
+## 관련 문서
+
+- [API 안내](api.md)
+- [주문 멱등성](order-idempotency.md)
+- [재고 보호](stock-protection.md)
+- [테스트와 검증](testing.md)

@@ -42,7 +42,7 @@
 
 Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동적 접속 정보를 주입합니다. 개발자 로컬 MariaDB·Redis는 사용하지 않으며 컨테이너는 Gradle 테스트 JVM 안에서 공유하고 실행이 끝나면 폐기합니다. Docker가 꺼져 있거나 이미지를 받을 수 없으면 컨테이너 시작 단계에서 인프라 오류로 실패합니다.
 
-## 테스트가 증명하는 것
+## 대표 테스트가 증명하는 것
 
 | 테스트 | 검증 대상 |
 |---|---|
@@ -85,7 +85,7 @@ Testcontainers가 `mariadb:11.8.6`과 `redis:7.4.5-alpine`을 시작하고 동�
 - `repository-hygiene`: `mysql-data/`, `mariadb-data/`, binlog, 인증서와 private key 확장자의 Git 추적 차단
 - `gitleaks`: 전체 Git 이력의 비밀정보 패턴 검사
 
-### Build and Publish Image
+### Gradle·통합 테스트 검증
 
 `.github/workflows/deploy.yml`은 `main` 대상 PR과 `main` push에서 동작합니다.
 
@@ -94,19 +94,14 @@ checkout
   → JDK 21
   → ./gradlew clean verifyChange
   → ./gradlew integrationTest
-  → main push일 때만 Docker Hub 로그인
-  → commit SHA와 latest 태그로 이미지 게시
 ```
-
-검증과 게시 경계:
 
 - `verifyChange`는 빠른 테스트와 실행 JAR를 검증하고, CI가 다음 단계에서 `integrationTest`를 별도로 실행합니다.
 - 통합 테스트는 GitHub-hosted runner의 Docker에서 Testcontainers로 MariaDB와 Redis를 시작하므로 별도 service container를 사용하지 않습니다.
 - 테스트가 실패하면 Gradle XML 결과와 HTML 보고서를 7일간 artifact로 보존합니다.
-- 이미지 게시 job은 검증 job에 의존하며, 검증에 실패하거나 PR에서 실행될 때는 Docker Hub 자격 증명을 사용하지 않습니다.
-- main push 이미지는 commit SHA로 추적하며 기존 사용자를 위해 `latest`도 함께 게시합니다.
-- Docker 이미지 게시는 자동이지만 원격 서버의 `deploy.sh` 실행은 자동화되어 있지 않습니다.
 - Testcontainers 기반 통합 테스트 도입은 [#16](https://github.com/juhwanz/eshop-refac/issues/16), CI 연결은 [#15](https://github.com/juhwanz/eshop-refac/issues/15)에서 추적합니다.
+
+검증 이후 이미지 게시 조건과 태그 정책은 [이미지 게시와 참고용 배포](deployment.md)에서 설명합니다.
 
 ## 변경 완료 전 확인
 
@@ -116,3 +111,12 @@ git status --short
 ```
 
 Java, Gradle 또는 설정 변경은 가까운 테스트부터 실행하고 위험도에 따라 `unitTest`, `verifyChange`, `integrationTest` 순으로 범위를 넓힙니다.
+
+## 관련 문서
+
+- [아키텍처 상세](architecture.md)
+- [재고 보호](stock-protection.md)
+- [k6 주문·조회 부하 테스트](load-testing.md)
+- [이미지 게시와 참고용 배포](deployment.md)
+- [ADR-0003: CI 검증 이후 이미지 게시](adr/0003-gate-image-publishing-on-ci-verification.md)
+- [ADR-0009: 통합 테스트 데이터베이스를 MariaDB로 통일한다](adr/0009-use-mariadb-for-integration-tests.md)
