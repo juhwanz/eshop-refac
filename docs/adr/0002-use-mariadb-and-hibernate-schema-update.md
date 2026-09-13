@@ -2,6 +2,7 @@
 
 - 상태: 채택
 - 날짜: 2026-09-05
+- 부분 대체: 통합 테스트 DB 선택은 [ADR-0009](0009-use-mariadb-for-integration-tests.md)가 대체
 
 ## 배경
 
@@ -34,3 +35,11 @@
 - `ddl-auto: update`는 파괴적 변경, rollback, 배포 간 순서 제어를 보장하지 않으므로 실제 데이터가 생긴 뒤에는 사용할 수 없다.
 - blue/green 인스턴스가 동시에 schema를 변경하지 않도록 schema 변경 배포 시 기동 순서를 관리해야 한다.
 - 결정 배경과 구현 범위는 GitHub 이슈 [#33](https://github.com/juhwanz/eshop-refac/issues/33)에서 추적한다.
+
+## 보완 기록
+
+### 2026-09-13: 통합 테스트 DB를 MariaDB로 통일
+
+- 2026-09-05의 최초 결정 이후 DB 통합 테스트를 Testcontainers의 MariaDB 11.8.6으로 전환했다.
+- 테스트 프로필은 `ddl-auto: create-drop`을 유지하고 Testcontainers가 동적 접속 정보를 주입한다.
+- 더 이상 H2를 사용하는 테스트가 없어 H2 테스트 런타임 의존성을 제거했다. 선택 배경과 결과는 [ADR-0009](0009-use-mariadb-for-integration-tests.md)에 기록하며, 위 결정의 H2 테스트 항목만 대체한다.
