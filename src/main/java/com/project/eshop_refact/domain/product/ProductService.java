@@ -71,6 +71,9 @@ public class ProductService {
      * 비관적 락(Pessimistic Lock) 기반 재고 차감
      * 트랜잭션 롤백 시 발생할 수 있는 캐시 정합성 문제를 방지하기 위해,
      * @CacheEvict 대신 트랜잭션 커밋 성공 시점에만 동작하는 이벤트를 발행합니다.
+     * 실제 주문 경로에서는 호출되지 않으며(Redisson 도입의 비교 대조군인
+     * {@link com.project.eshop_refact.domain.order.strategy.PessimisticLockStrategy} 전용 구현입니다),
+     * DB 락 단독 시나리오는 {@code OrderAvailabilityIntegrationTest}가 이 리포지토리 메서드를 직접 재현합니다.
      */
     @Transactional  // 쓰기
     public Product decreaseStock(Long productId, int quantity) {
