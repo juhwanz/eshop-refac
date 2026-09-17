@@ -20,7 +20,24 @@ class ProductionSecretsValidatorTest {
                     assertThat(context.getStartupFailure())
                             .hasRootCauseInstanceOf(IllegalStateException.class)
                             .rootCause()
-                            .hasMessage("Missing required production environment variables: DB_PASSWORD, JWT_SECRET_KEY");
+                            .hasMessage("Missing or placeholder production environment variables: DB_PASSWORD, JWT_SECRET_KEY");
+                });
+    }
+
+    @Test
+    void prodProfileFailsToStartWhenSecretsAreStillPlaceholderValues() {
+        contextRunner
+                .withPropertyValues(
+                        "spring.profiles.active=prod",
+                        "DB_PASSWORD=your_db_password",
+                        "JWT_SECRET_KEY=replace_with_generated_base64_value"
+                )
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalStateException.class)
+                            .rootCause()
+                            .hasMessage("Missing or placeholder production environment variables: DB_PASSWORD, JWT_SECRET_KEY");
                 });
     }
 
